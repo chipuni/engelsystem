@@ -21,5 +21,5 @@ sleep 5 && \
 docker compose exec es_server bin/migrate
 
 if [ $? -eq 0 ]; then
-  echo "The Engelsystem should now be running locally at http://localhost:80. Enjoy!"
+  echo "The Engelsystem should now be running locally at http://localhost:8080. Enjoy!"
 fi
