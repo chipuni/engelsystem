@@ -810,11 +810,11 @@ msgid "Marked angels."
 msgstr "Marked gofurs."
 
 
-msgid "footer.eventinfo.start_end"
+msgid "footer.eventinfo.name_start_end"
 msgstr "%1$s, from %2$s to %3$s"
 
 msgid "footer.eventinfo.name_start"
-msgstr "%1$s, ab dem %2$s"
+msgstr "%1$s, from %2$s"
 
 msgid "footer.eventinfo.name_start"
 msgstr "%1$s, starting %2$s"
@@ -961,10 +961,10 @@ msgid "angel"
 msgstr "gofur"
 
 msgid "By completing this form you're registering as a Chaos-Angel. This script will create you an account in the angel task scheduler."
-msgstr "By completing this form you're registering as a gofur for FC. This script will create you an account in the gofur task scheduler."
+msgstr "By completing this form you're registering as a gofur for AFC. This script will create you an account in the gofur task scheduler."
 
 msgid "login.welcome"
-msgstr "Welcome to Further Confusion's Engelsystem! We're glad you're here!"
+msgstr "Welcome to Another Furry Con's Engelsystem! We're glad you're here!"
 
 msgid "general.register"
 msgstr "Register here"
@@ -992,7 +992,7 @@ msgstr "The people"
 
 msgid "credits.version"
 msgstr "This version of Engelsystem was modified and simplified by [Chip Unicorn](https://im-in.space/@Chip_Unicorn) "
-"for Further Confusion."
+"for Another Furry Con."
 
 msgid "general.logout"
 msgstr "Logout"
@@ -1005,3 +1005,9 @@ msgstr "Enter your email address below. If the system can send out emails (not l
 
 msgid "Take needed angels from location settings"
 msgstr "Take needed gofurs from location settings"
+
+msgid "general.datetime"
+msgstr "m/d/Y h:i A"
+
+msgid "general.date"
+msgstr "m/d/Y"
