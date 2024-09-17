@@ -15,10 +15,10 @@ docker rm engelsystem_es_server_1 engelsystem_es_database_1  2>&1 > /dev/null
 # Start-up all the scripts.
 # The "sleep 5" is because "--wait" doesn't wait long enough.
 cd docker
-docker-compose build --no-cache && \
-docker-compose up -d && \
+docker compose build --no-cache && \
+docker compose up -d && \
 sleep 5 && \
-docker-compose exec es_server bin/migrate
+docker compose exec es_server bin/migrate
 
 if [ $? -eq 0 ]; then
   echo "The Engelsystem should now be running locally at http://localhost:80. Enjoy!"

@@ -10,7 +10,7 @@ Go to AWS, then EC2, then Instances. Launch an instance with the following setti
 
 1. Give it any name.
 
-2. Choose "Ubuntu Server 22.04 LTS (HVM), SSD Volume Type" as the Amazon Machine Image.
+2. Choose "Ubuntu Server 24.04 LTS (HVM), SSD Volume Type" as the Amazon Machine Image.
 
 3. Architecture: 64-bit (x86)
 
@@ -40,7 +40,7 @@ $ sudo apt-get upgrade
 Accept all defaults.
 
 ```
-$ sudo apt-get install docker docker.io docker-compose
+$ sudo apt-get install wmdocker docker.io docker-compose-v2
 ```
 
 Accept all defaults.
@@ -56,11 +56,13 @@ $ sudo reboot
 Log back into the system.
 
 1. Check that you have docker permission by typing `docker ps`
+2. Clone the system by typing `git clone https://github.com/chipuni/engelsystem.git`
+3. Switch to the AFC branch by typing `git switch afc`
 
 2. Start up Engelsystem with the command `./startup.sh`. This will take some time to complete.
 
 3. Once the startup is finished, you can visit the webpage at 
-http://ec2-??-???-???-???.compute-1.amazonaws.com:8080/login. 
+http://ec2-??-???-???-???.compute-1.amazonaws.com:8080/login . 
 
 4. The default user name is `admin` and the default password is `asdfasdf`.
 
