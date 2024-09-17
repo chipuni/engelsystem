@@ -11,7 +11,6 @@ services:
       MYSQL_USER: engelsystem
       MYSQL_PASSWORD: engelsystem
       MYSQL_DATABASE: engelsystem
-      APP_URL: http://localhost:8080
     ports:
       - "8080:80"
     env_file: deployment.env

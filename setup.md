@@ -57,7 +57,7 @@ Log back into the system.
 
 1. Check that you have docker permission by typing `docker ps`
 2. Clone the system by typing `git clone https://github.com/chipuni/engelsystem.git`
-3. Switch to the AFC branch by typing `git switch afc`
+3. Switch to the AFC branch by typing `cd engelsystem ; git switch afc`
 
 2. Start up Engelsystem with the command `./startup.sh`. This will take some time to complete.
 
