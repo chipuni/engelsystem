@@ -25,9 +25,6 @@ return [
     // Set to development to enable debugging messages
     'environment'             => env('ENVIRONMENT', 'development'),
 
-    // Application URL and base path to use instead of the auto-detected one
-    'url'                     => env('APP_URL', 'https://gofurs.furtherconfusion.org'),
-
     // Header links
     // Available link placeholders: %lang%
     // To disable a header_item in the config.php, you can set its value to null
