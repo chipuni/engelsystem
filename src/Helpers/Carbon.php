@@ -6,9 +6,9 @@ namespace Engelsystem\Helpers;
 
 class Carbon extends \Carbon\Carbon
 {
-    public const DATETIME_LOCAL = '!Y-m-d\Th:i A';
+    public const DATETIME_LOCAL = '!Y-m-d\TH:i';
 
-    public const DATETIME_FALLBACK = '!Y-m-d h:i A';
+    public const DATETIME_FALLBACK = '!Y-m-d H:i';
 
     public const DATETIME_FORMATS = [
         self::DATETIME_LOCAL,
