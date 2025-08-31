@@ -1,8 +1,6 @@
 <?php
 
-use Engelsystem\Helpers\Carbon;
 use Engelsystem\Http\Exceptions\HttpTemporaryRedirect;
-use Engelsystem\ValidationResult;
 
 /**
  * Provide page/request helper functions
@@ -78,61 +76,6 @@ function check_request_int_array($name, $default = [])
 }
 
 /**
- * Checks if given request item (name) can be parsed to a date.
- * If not parsable, given error message is put into msg() and null is returned.
- *
- * @param string $name          to be parsed into a date.
- * @param string $error_message the error message displayed if $input is not parsable
- * @param bool   $null_allowed  is a null value allowed?
- * @param bool   $time_allowed  is time allowed?
- * @return ValidationResult containing the parsed date
- */
-function check_request_date($name, $error_message = null, $null_allowed = false, $time_allowed = false)
-{
-    $request = request();
-    if (!$request->has($name)) {
-        return new ValidationResult($null_allowed, null);
-    }
-    return check_date($request->input($name), $error_message, $null_allowed, $time_allowed);
-}
-
-/**
- * Checks if given string can be parsed to a date.
- * If not parsable, given error message is put into msg() and null is returned.
- *
- * @param string $input         String to be parsed into a date.
- * @param string $error_message the error message displayed if $input is not parsable
- * @param bool   $null_allowed  is a null value allowed?
- * @param bool   $time_allowed  is time allowed?
- * @return ValidationResult containing the parsed date
- */
-function check_date($input, $error_message = null, $null_allowed = false, $time_allowed = false)
-{
-    $trimmed_input = trim((string) $input);
-
-    try {
-        if ($time_allowed) {
-            $time = Carbon::createFromDatetime($trimmed_input);
-        } else {
-            $time = Carbon::createFromFormat('Y-m-d', $trimmed_input);
-        }
-    } catch (InvalidArgumentException $e) {
-        $time = null;
-    }
-
-    if ($time) {
-        return new ValidationResult(true, $time);
-    }
-
-    if ($null_allowed) {
-        return new ValidationResult(true, null);
-    }
-
-    error($error_message);
-    return new ValidationResult(false, null);
-}
-
-/**
  * Returns REQUEST value filtered or default value (null) if not set.
  *
  * @param string $name
@@ -196,21 +139,4 @@ function strip_item($item)
 {
     // Only allow letters, symbols, punctuation, separators and numbers without html tags
     return preg_replace('/([^\p{L}\p{S}\p{P}\p{Z}\p{N}+]+)/ui', '', strip_tags($item));
-}
-
-/**
- * Validates an email address with support for IDN domain names.
- *
- * @param string $email
- * @return bool
- */
-function check_email($email)
-{
-    // Convert the domain part from idn to ascii
-    if (substr_count($email, '@') == 1) {
-        list($name, $domain) = explode('@', $email);
-        $domain = idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
-        $email = $name . '@' . $domain;
-    }
-    return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
 }

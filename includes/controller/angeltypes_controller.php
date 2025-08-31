@@ -6,7 +6,6 @@ use Engelsystem\Models\Location;
 use Engelsystem\Models\UserAngelType;
 use Engelsystem\ShiftsFilter;
 use Engelsystem\ShiftsFilterRenderer;
-use Engelsystem\ValidationResult;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
@@ -66,13 +65,13 @@ function angeltype_delete_controller()
 
     if (request()->hasPostData('delete')) {
         $angeltype->delete();
-        engelsystem_log('Deleted angeltype: ' . AngelType_name_render($angeltype, true));
-        success(sprintf(__('Angeltype %s deleted.'), $angeltype->name));
+        engelsystem_log('Deleted angel type: ' . AngelType_name_render($angeltype, true));
+        success(sprintf(__('Angel type %s deleted.'), $angeltype->name));
         throw_redirect(url('/angeltypes'));
     }
 
     return [
-        sprintf(__('Delete angeltype %s'), htmlspecialchars($angeltype->name)),
+        sprintf(__('Delete angel type %s'), htmlspecialchars($angeltype->name)),
         AngelType_delete_view($angeltype),
     ];
 }
@@ -109,10 +108,10 @@ function angeltype_edit_controller()
 
         if (!$supporter_mode) {
             if ($request->has('name')) {
-                $result = AngelType_validate_name($request->postData('name'), $angeltype);
-                $angeltype->name = $result->getValue();
-                if (!$result->isValid()) {
-                    $valid = false;
+                $name = substr(strip_item($request->postData('name')), 0, 255);
+                $valid = AngelType_validate_name($request->postData('name'), $angeltype);
+                $angeltype->name = $name;
+                if (!$valid) {
                     error(__('Please check the name. Maybe it already exists.'));
                 }
             }
@@ -136,12 +135,16 @@ function angeltype_edit_controller()
         if ($valid) {
             $angeltype->save();
 
-            success('Angel type saved.');
+            success(__('Angel type saved.'));
             engelsystem_log(
-                'Saved angeltype: ' . $angeltype->name . ($angeltype->restricted ? ', restricted' : '')
+                'Saved angel type: ' . $angeltype->name . ($angeltype->restricted ? ', restricted' : '')
                 . ($angeltype->shift_self_signup ? ', shift_self_signup' : '')
-                . ($angeltype->requires_driver_license ? ', requires driver license' : '') . ', '
-                . ($angeltype->requires_ifsg_certificate ? ', requires ifsg certificate' : '') . ', '
+                . (config('driving_license_enabled')
+                    ? (($angeltype->requires_driver_license ? ', requires driver license' : '') . ', ')
+                    : '')
+                . (config('ifsg_enabled')
+                    ? (($angeltype->requires_ifsg_certificate ? ', requires ifsg certificate' : '') . ', ')
+                    : '')
                 . $angeltype->contact_name . ', '
                 . $angeltype->contact_dect . ', '
                 . $angeltype->contact_email . ', '
@@ -175,7 +178,9 @@ function angeltype_controller()
     $angeltype = AngelType::findOrFail(request()->input('angeltype_id'));
     /** @var UserAngelType $user_angeltype */
     $user_angeltype = UserAngelType::whereUserId($user->id)->where('angel_type_id', $angeltype->id)->first();
-    $members = $angeltype->userAngelTypes->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE);
+    $members = $angeltype->userAngelTypes
+        ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+        ->load(['state', 'personalData', 'contact']);
     $days = angeltype_controller_shiftsFilterDays($angeltype);
     $shiftsFilter = angeltype_controller_shiftsFilter($angeltype, $days);
     if (request()->input('showFilledShifts')) {
@@ -272,6 +277,7 @@ function angeltype_controller_shiftsFilter(AngelType $angeltype, $days)
 function angeltypes_list_controller()
 {
     $user = auth()->user();
+    $admin_angeltypes = auth()->can('admin_angel_types');
 
     if (!auth()->can('angeltypes')) {
         throw_redirect(url('/'));
@@ -282,21 +288,27 @@ function angeltypes_list_controller()
         $actions = [
             button(
                 url('/angeltypes', ['action' => 'view', 'angeltype_id' => $angeltype->id]),
-                icon('eye') . __('view'),
-                'btn-sm'
+                icon('eye') . ($admin_angeltypes ? '' : __('View')),
+                'btn-sm btn-info',
+                '',
+                ($admin_angeltypes ? __('View') : '')
             ),
         ];
 
-        if (auth()->can('admin_angel_types')) {
+        if ($admin_angeltypes) {
             $actions[] = button(
                 url('/angeltypes', ['action' => 'edit', 'angeltype_id' => $angeltype->id]),
-                icon('pencil') . __('edit'),
-                'btn-sm'
+                icon('pencil'),
+                'btn-sm',
+                '',
+                __('form.edit')
             );
             $actions[] = button(
                 url('/angeltypes', ['action' => 'delete', 'angeltype_id' => $angeltype->id]),
-                icon('trash') . __('delete'),
-                'btn-sm'
+                icon('trash'),
+                'btn-sm btn-danger',
+                '',
+                __('form.delete')
             );
         }
 
@@ -307,14 +319,18 @@ function angeltypes_list_controller()
                     '/user-angeltypes',
                     ['action' => 'delete', 'user_angeltype_id' => $angeltype->user_angel_type_id]
                 ),
-                icon('box-arrow-right') . __('leave'),
-                'btn-sm'
+                icon('box-arrow-right') . ($admin_angeltypes ? '' : __('Leave')),
+                'btn-sm',
+                '',
+                ($admin_angeltypes ? __('Leave') : '')
             );
         } else {
             $actions[] = button(
                 url('/user_angeltypes', ['action' => 'add', 'angeltype_id' => $angeltype->id]),
-                icon('box-arrow-in-right') . __('join'),
-                'btn-sm'
+                icon('box-arrow-in-right') . ($admin_angeltypes ? '' : __('Join')),
+                'btn-sm' . ($admin_angeltypes ? ' btn-success' : ''),
+                '',
+                ($admin_angeltypes ? __('Join') : '')
             );
         }
 
@@ -338,28 +354,24 @@ function angeltypes_list_controller()
 
 /**
  * Validates a name for angeltypes.
- * Returns ValidationResult containing validation success and validated name.
  *
  * @param string    $name Wanted name for the angeltype
  * @param AngelType $angeltype The angeltype the name is for
  *
- * @return ValidationResult result and validated name
+ * @return bool validation result
  */
 function AngelType_validate_name($name, AngelType $angeltype)
 {
-    $name = strip_item($name);
     if ($name == '') {
-        return new ValidationResult(false, '');
+        return false;
     }
     if ($angeltype->id) {
-        $valid = AngelType::whereName($name)
+        return AngelType::whereName($name)
                 ->where('id', '!=', $angeltype->id)
                 ->count() == 0;
-        return new ValidationResult($valid, $name);
     }
 
-    $valid = AngelType::whereName($name)->count() == 0;
-    return new ValidationResult($valid, $name);
+    return AngelType::whereName($name)->count() == 0;
 }
 
 /**

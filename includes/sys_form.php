@@ -20,8 +20,9 @@ function form_hidden($name, $value)
  *
  * @param string $name
  * @param string $label
- * @param int    $value
- * @param array  $data_attributes
+ * @param int $value
+ * @param array $data_attributes
+ * @param bool $isDisabled
  * @return string
  */
 function form_spinner(string $name, string $label, int $value, array $data_attributes = [], bool $isDisabled = false)
@@ -139,13 +140,26 @@ function form_info($label, $text = '')
  * @param string $name
  * @param string $label
  * @param string $class
- * @param bool   $wrapForm
+ * @param bool $wrapForm
  * @param string $buttonType
+ * @param string $title
+ * @param array $dataAttributes
  * @return string
  */
-function form_submit($name, $label, $class = '', $wrapForm = true, $buttonType = 'primary')
-{
-    $button = '<button class="btn btn-' . $buttonType . ($class ? ' ' . $class : '') . '" type="submit" name="' . $name . '">'
+function form_submit(
+    $name,
+    $label,
+    $class = '',
+    $wrapForm = true,
+    $buttonType = 'primary',
+    $title = '',
+    array $dataAttributes = []
+) {
+    $add = '';
+    foreach ($dataAttributes as $dataType => $dataValue) {
+        $add .= ' data-' . $dataType . '="' . htmlspecialchars($dataValue) . '"';
+    }
+    $button = '<button class="btn btn-' . $buttonType . ($class ? ' ' . $class : '') . '" type="submit" name="' . $name . '" title="' . $title . '"' . $add . '>'
         . $label
         . '</button>';
 
@@ -208,7 +222,7 @@ function form_password($name, $label, $autocomplete, $disabled = false)
         sprintf(
             '<input class="form-control" id="form_%1$s" type="password" name="%1$s" minlength="%2$s" value="" autocomplete="%3$s" %4$s>',
             $name,
-            config('min_password_length'),
+            config('password_min_length'),
             $autocomplete,
             $disabled
         ),
@@ -285,14 +299,14 @@ function form_element($label, $input, $for = '', $class = '')
  *
  * @param string[] $elements
  * @param string   $action
- * @param bool     $inline
+ * @param string   $style
  * @return string
  */
-function form($elements, $action = '', $inline = false, $btnGroup = false)
+function form($elements, $action = '', $style = '', $btnGroup = false)
 {
     return '<form action="' . $action . '" enctype="multipart/form-data" method="post"'
         . ($btnGroup ? ' class="btn-group"' : '')
-        . ($inline ? ' style="float:left"' : '') . '>'
+        . ($style ? ' style="' . $style . '"' : '') . '>'
         . join($elements)
         . form_csrf()
         . '</form>';

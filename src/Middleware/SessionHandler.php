@@ -13,22 +13,21 @@ use Symfony\Component\HttpFoundation\Session\Storage\SessionStorageInterface;
 
 class SessionHandler implements MiddlewareInterface
 {
-    public function __construct(protected SessionStorageInterface $session, protected array $paths = [])
+    public function __construct(protected SessionStorageInterface $session)
     {
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $requestPath = $request->getAttribute('route-request-path');
-        $isApi = in_array($requestPath, $this->paths);
-        $request = $request->withAttribute('route-api', $isApi);
-
         $return = $handler->handle($request);
 
         $cookies = $request->getCookieParams();
         if (
-            $isApi
+            // Is api (accessible) path
+            $request->getAttribute('route-api-accessible')
+            // Uses native PHP session
             && $this->session instanceof NativeSessionStorage
+            // No session cookie was sent on request
             && !isset($cookies[$this->session->getName()])
         ) {
             $this->destroyNative();

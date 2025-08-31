@@ -30,6 +30,8 @@ The Engelsystem can be started using the provided startup.sh program.
  * MySQL-Server >= 5.7.8 or MariaDB-Server >= 10.2.2
  * Webserver, i.e. lighttpd, nginx, or Apache
 
+From previous experience, 2 cores and 2GB ram are roughly enough for up to 1000 Angels (~700 arrived + 500 arrived but not working) during an event.
+
 ### Download
 * Go to the [Engelsystem](https://github.com/chipuni/engelsystem) page and download the latest stable release file.
  * Extract the files to your webroot and continue with the directions for configurations and setup.
@@ -42,7 +44,14 @@ The Engelsystem can be started using the provided startup.sh program.
  * Recommended: Directory Listing should be disabled.
  * There must be a MySQL database set up with a user who has full rights to that database.
  * If necessary, create a `config/config.php` to override values from `config/config.default.php`.
-   * To disable/remove values from the `themes`, `tshirt_sizes`, `headers`, `header_items`, `footer_items`, or `locales` lists, set the value of the entry to `null`.
+   * To disable/remove values from the following lists, set the value of the entry to `null`:
+     * `themes`
+     * `tshirt_sizes`
+     * `headers`
+     * `header_items`
+     * `footer_items`
+     * `locales`
+     * `contact_options`
  * To import the database, the `bin/migrate` script has to be run. If you can't execute scripts, you can use the `initial-install.sql` file from the release zip.
  * In the browser, login with credentials `admin` : `asdfasdf` and change the password.
 
@@ -53,6 +62,9 @@ The Engelsystem can now be used.
  * Both Apache and Nginx allow for different VirtualHost configurations.
 
 ### Docker
+
+For instructions on how to build the Docker container for development, please consult the [DEVELOPMENT.md](DEVELOPMENT.md).
+
 #### Build
 To build the `es_server` container:
 ```bash
@@ -72,8 +84,8 @@ cd docker
 docker compose up -d
 ```
 
-#### Migrate
-Import database changes to migrate it to the newest version
+#### Set Up / Migrate Database
+Create the Database Schema (on a fresh install) or import database changes to migrate it to the newest version
 ```bash
 cd docker
 docker compose exec es_server bin/migrate

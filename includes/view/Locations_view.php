@@ -17,7 +17,7 @@ function location_view(Location $location, ShiftsFilterRenderer $shiftsFilterRen
 
     $assignNotice = '';
     if (config('signup_requires_arrival') && !$user->state->arrived) {
-        $assignNotice = info(render_user_arrived_hint((bool) $user->state->user_info), true);
+        $assignNotice = info(render_user_arrived_hint(), true);
     }
 
     $description = '';
@@ -25,6 +25,22 @@ function location_view(Location $location, ShiftsFilterRenderer $shiftsFilterRen
         $description = '<h3>' . __('general.description') . '</h3>';
         $parsedown = new Parsedown();
         $description .= $parsedown->parse(htmlspecialchars($location->description));
+    }
+
+    $neededAngelTypes = '';
+    if (auth()->can('admin_shifts') && $location->neededAngelTypes->isNotEmpty()) {
+        $neededAngelTypes .= '<h3>' . __('location.required_angels') . '</h3><ul>';
+        foreach ($location->neededAngelTypes as $neededAngelType) {
+            if ($neededAngelType->count) {
+                $neededAngelTypes .= '<li><a href="'
+                    . url('angeltypes', ['action' => 'view', 'angeltype_id' => $neededAngelType->angelType->id])
+                    . '">' . $neededAngelType->angelType->name
+                    . '</a>: '
+                    . $neededAngelType->count
+                    . '</li>';
+            }
+        }
+        $neededAngelTypes .= '</ul>';
     }
 
     $dect = '';
@@ -40,13 +56,13 @@ function location_view(Location $location, ShiftsFilterRenderer $shiftsFilterRen
     if ($location->map_url) {
         $tabs[__('location.map_url')] = sprintf(
             '<div class="map">'
-            . '<iframe style="width: 100%%; min-height: 400px; border: 0 none;" src="%s"></iframe>'
+            . '<iframe style="width: 100%%; min-height: 75vh; border: 0 none;" src="%s"></iframe>'
             . '</div>',
             htmlspecialchars($location->map_url)
         );
     }
 
-    $tabs[__('Shifts')] = div('first', [
+    $tabs[__('general.shifts')] = div('first', [
         $shiftsFilterRenderer->render(url('/locations', [
             'action'  => 'view',
             'location_id' => $location->id,
@@ -60,7 +76,7 @@ function location_view(Location $location, ShiftsFilterRenderer $shiftsFilterRen
         $selected_tab = count($tabs) - 1;
     }
 
-    $link = button(url('/admin/locations'), icon('chevron-left'), 'btn-sm');
+    $link = button(url('/admin/locations'), icon('chevron-left'), 'btn-sm', '', __('general.back'));
     return page_with_title(
         (auth()->can('admin_locations') ? $link . ' ' : '') .
         icon('pin-map-fill') . htmlspecialchars($location->name),
@@ -69,11 +85,15 @@ function location_view(Location $location, ShiftsFilterRenderer $shiftsFilterRen
         auth()->can('admin_locations') ? buttons([
             button(
                 url('/admin/locations/edit/' . $location->id),
-                icon('pencil') . __('edit')
+                icon('pencil'),
+                '',
+                '',
+                __('form.edit')
             ),
         ]) : '',
         $dect,
         $description,
+        $neededAngelTypes,
         tabs($tabs, $selected_tab),
         ],
         true

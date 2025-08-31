@@ -149,7 +149,7 @@ function shift_entry_create_controller_supporter(Shift $shift, AngelType $angelt
     }
 
     if (!$signup_user->userAngelTypes()->wherePivot('angel_type_id', $angeltype->id)->exists()) {
-        error(__('User is not in angeltype.'));
+        error(__('User is not in angel type.'));
         throw_redirect(shift_link($shift));
     }
 
@@ -186,7 +186,7 @@ function shift_entry_create_controller_supporter(Shift $shift, AngelType $angelt
 function shift_entry_error_message(ShiftSignupState $shift_signup_state)
 {
     match ($shift_signup_state->getState()) {
-        ShiftSignupStatus::ANGELTYPE   => error(__('You need be accepted member of the angeltype.')),
+        ShiftSignupStatus::ANGELTYPE   => error(__('You need be accepted member of the angel type.')),
         ShiftSignupStatus::COLLIDES    => error(__('This shift collides with one of your shifts.')),
         ShiftSignupStatus::OCCUPIED    => error(__('This shift is already occupied.')),
         ShiftSignupStatus::SHIFT_ENDED => error(__('This shift ended already.')),
@@ -210,7 +210,7 @@ function shift_entry_create_controller_user(Shift $shift, AngelType $angeltype):
     $request = request();
 
     $signup_user = auth()->user();
-    $needed_angeltype = (new AngelType())->forceFill(NeededAngeltype_by_Shift_and_Angeltype($shift, $angeltype));
+    $needed_angeltype = (new AngelType())->forceFill(NeededAngeltype_by_Shift_and_Angeltype($shift, $angeltype) ?: []);
     $shift_entries = $shift->shiftEntries()
         ->where('angel_type_id', $angeltype->id)
         ->get();
@@ -307,9 +307,8 @@ function shift_entry_load()
     if (!$request->has('shift_entry_id') || !test_request_int('shift_entry_id')) {
         throw_redirect(url('/user-shifts'));
     }
-    $shiftEntry = ShiftEntry::findOrFail($request->input('shift_entry_id'));
 
-    return $shiftEntry;
+    return ShiftEntry::findOrFail($request->input('shift_entry_id'));
 }
 
 /**

@@ -38,10 +38,11 @@ class QuestionsController extends BaseController
         $questions = $this->question
             ->orderBy('answered_at')
             ->orderByDesc('created_at')
-            ->get();
+            ->get()
+            ->load(['user.state', 'answerer.state']);
 
         return $this->response->withView(
-            'pages/questions/overview.twig',
+            'pages/questions/index.twig',
             ['questions' => $questions, 'is_admin' => true]
         );
     }

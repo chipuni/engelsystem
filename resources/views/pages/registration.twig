@@ -8,10 +8,7 @@
 <div class="container">
     <div class="mb-5">
         <h1>
-        {{ has_permission_to('admin_user')
-            ? m.button(m.icon('chevron-left'), url('/users'), null, 'sm')
-            : ''
-        }}
+        {{ can('admin_user') ? m.back(url('/users')) : '' }}
         {{ __('registration.title') }}
         </h1>
     </div>
@@ -195,15 +192,16 @@
                 {% if isGoodieEnabled %}
                     <div class="col-md-6">
                         {% set privacy_email = config('privacy_email') %}
-                        {% set email_goody_label = __('settings.profile.email_goody') ~
+                        {% set email_goodie_label =
+                            (isGoodieTShirt ? __('settings.profile.email_tshirt') : __('settings.profile.email_goodie')) ~
                             (privacy_email ? ' ' ~ __('settings.profile.privacy', [privacy_email]) : '')
                         %}
                         {{ f.checkbox(
-                            'email_goody',
-                            email_goody_label,
+                            'email_goodie',
+                            email_goodie_label,
                             {
                                 'raw_label': true,
-                                'checked': f.formData('email_goody', false),
+                                'checked': f.formData('email_goodie', false),
                             },
                         ) }}
                     </div>
@@ -238,6 +236,14 @@
                                 'required': isTShirtSizeRequired,
                                 'required_icon': isTShirtSizeRequired,
                                 'selected': f.formData('tshirt_size', ''),
+                                'info': __('settings.profile.shirt_size.hint'),
+                                'raw_form_text': true,
+                                'form_text': (tShirtLink ? m.icon('info-circle')
+                                    ~ ' <a href="'
+                                    ~ tShirtLink|escape('html_attr')
+                                    ~ '" target="_blank" rel="noopener">'
+                                    ~ __('settings.profile.shirt.link')|e
+                                    ~ '</a>' : ''),
                             }
                         ) }}
                     </div>

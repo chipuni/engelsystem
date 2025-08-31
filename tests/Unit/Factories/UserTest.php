@@ -18,6 +18,7 @@ use Engelsystem\Test\Unit\ServiceProviderTest;
 use Engelsystem\Test\Utils\SignUpConfig;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
@@ -48,7 +49,7 @@ class UserTest extends ServiceProviderTest
         $this->config->set('oauth', []);
         $this->session = new Session(new MockArraySessionStorage());
         $this->app->instance(SessionInterface::class, $this->session);
-        $this->app->instance(LoggerInterface::class, $this->getMockForAbstractClass(LoggerInterface::class));
+        $this->app->instance(LoggerInterface::class, new NullLogger());
 
         $this->app->instance(ServerRequestInterface::class, new Request());
         $this->app->instance(Authenticator::class, $this->app->make(Authenticator::class));
@@ -112,6 +113,7 @@ class UserTest extends ServiceProviderTest
         $this->assertSame('fritz', $user->name);
         $this->assertSame('fritz@example.com', $user->email);
         $this->assertSame(false, $user->state->arrived);
+        $this->assertNotEmpty($user->api_key);
     }
 
     /**
@@ -184,7 +186,7 @@ class UserTest extends ServiceProviderTest
                     'validation.email.email',
                 ],
                 'mobile' =>  [
-                    'validation.mobile.optional',
+                    'validation.mobile.length',
                 ],
                 'password' => [
                     'validation.password.length',
@@ -193,19 +195,19 @@ class UserTest extends ServiceProviderTest
                     'validation.password_confirmation.required',
                 ],
                 'firstname' => [
-                    'validation.firstname.optional',
+                    'validation.firstname.length',
                 ],
                 'lastname' => [
-                    'validation.lastname.optional',
+                    'validation.lastname.length',
                 ],
                 'pronoun' => [
-                    'validation.pronoun.optional',
+                    'validation.pronoun.max',
                 ],
                 'planned_arrival_date' => [
                     'validation.planned_arrival_date.min',
                 ],
                 'dect' =>  [
-                    'validation.dect.optional',
+                    'validation.dect.length',
                 ],
                 'tshirt_size' => [
                     'validation.tshirt_size.shirtSize',

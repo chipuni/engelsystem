@@ -28,12 +28,26 @@ function Shifts_by_angeltype(AngelType $angeltype)
 
         UNION
 
+        /* By shift type */
+        SELECT DISTINCT `shifts`.* FROM `shifts`
+        JOIN `needed_angel_types` ON `needed_angel_types`.`shift_type_id` = `shifts`.`shift_type_id`
+        LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
+        WHERE `needed_angel_types`.`angel_type_id` = ?
+        AND NOT s.shift_id IS NULL
+        AND se.needed_from_shift_type = TRUE
+
+        UNION
+
+        /* By location */
         SELECT DISTINCT `shifts`.* FROM `shifts`
         JOIN `needed_angel_types` ON `needed_angel_types`.`location_id` = `shifts`.`location_id`
         LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
         WHERE `needed_angel_types`.`angel_type_id` = ?
         AND NOT s.shift_id IS NULL
-        ', [$angeltype->id, $angeltype->id]);
+        AND se.needed_from_shift_type = FALSE
+        ', [$angeltype->id, $angeltype->id, $angeltype->id]);
 }
 
 /**
@@ -53,7 +67,7 @@ function Shifts_free($start, $end, ShiftsFilter $filter = null)
     $shifts = Db::select('
         SELECT *
         FROM (
-            SELECT id, start
+            SELECT shifts.id, start
             FROM `shifts`
             LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
             WHERE (`end` > ? AND `start` < ?)
@@ -64,13 +78,30 @@ function Shifts_free($start, $end, ShiftsFilter $filter = null)
 
             UNION
 
-            SELECT id, start
+            /* By shift type */
+            SELECT shifts.id, start
             FROM `shifts`
             LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+            LEFT JOIN schedules AS se on s.schedule_id = se.id
+            WHERE (`end` > ? AND `start` < ?)
+            AND (SELECT SUM(`count`) FROM `needed_angel_types` WHERE `needed_angel_types`.`shift_type_id`=`shifts`.`shift_type_id`' . ($filter ? ' AND needed_angel_types.angel_type_id IN (' . implode(',', $filter->getTypes()) . ')' : '') . ')
+            > (SELECT COUNT(*) FROM `shift_entries` WHERE `shift_entries`.`shift_id`=`shifts`.`id` AND shift_entries.`freeloaded`=0' . ($filter ? ' AND shift_entries.angel_type_id IN (' . implode(',', $filter->getTypes()) . ')' : '') . ')
+            AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = TRUE
+            ' . ($filter ? 'AND shifts.location_id IN (' . implode(',', $filter->getLocations()) . ')' : '') . '
+
+            UNION
+
+            /* By location */
+            SELECT shifts.id, start
+            FROM `shifts`
+            LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+            LEFT JOIN schedules AS se on s.schedule_id = se.id
             WHERE (`end` > ? AND `start` < ?)
             AND (SELECT SUM(`count`) FROM `needed_angel_types` WHERE `needed_angel_types`.`location_id`=`shifts`.`location_id`' . ($filter ? ' AND needed_angel_types.angel_type_id IN (' . implode(',', $filter->getTypes()) . ')' : '') . ')
-            > (SELECT COUNT(*) FROM `shift_entries` WHERE `shift_entries`.`shift_id`=`shifts`.`id` AND `freeloaded`=0' . ($filter ? ' AND shift_entries.angel_type_id IN (' . implode(',', $filter->getTypes()) . ')' : '') . ')
+            > (SELECT COUNT(*) FROM `shift_entries` WHERE `shift_entries`.`shift_id`=`shifts`.`id` AND shift_entries.`freeloaded`=0' . ($filter ? ' AND shift_entries.angel_type_id IN (' . implode(',', $filter->getTypes()) . ')' : '') . ')
             AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = FALSE
             ' . ($filter ? 'AND shifts.location_id IN (' . implode(',', $filter->getLocations()) . ')' : '') . '
         ) AS `tmp`
         ORDER BY `tmp`.`start`
@@ -79,11 +110,13 @@ function Shifts_free($start, $end, ShiftsFilter $filter = null)
         $end,
         $start,
         $end,
+        $start,
+        $end,
     ]);
 
     $shifts = collect($shifts);
 
-    return Shift::query()
+    return Shift::with(['location', 'shiftType'])
         ->whereIn('id', $shifts->pluck('id')->toArray())
         ->orderBy('shifts.start')
         ->get();
@@ -110,16 +143,35 @@ function Shifts_by_ShiftsFilter(ShiftsFilter $shiftsFilter)
 
         UNION
 
+        /* By shift type */
+        SELECT DISTINCT `shifts`.*, `shift_types`.`name`, `locations`.`name` AS `location_name`
+        FROM `shifts`
+        JOIN `locations` ON `shifts`.`location_id` = `locations`.`id`
+        JOIN `shift_types` ON `shift_types`.`id` = `shifts`.`shift_type_id`
+        JOIN `needed_angel_types` ON `needed_angel_types`.`shift_type_id`=`shifts`.`shift_type_id`
+        LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
+        WHERE `shifts`.`location_id` IN (' . implode(',', $shiftsFilter->getLocations()) . ')
+            AND `start` BETWEEN ? AND ?
+            AND `needed_angel_types`.`angel_type_id` IN (' . implode(',', $shiftsFilter->getTypes()) . ')
+            AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = TRUE
+
+        UNION
+
+        /* By location */
         SELECT DISTINCT `shifts`.*, `shift_types`.`name`, `locations`.`name` AS `location_name`
         FROM `shifts`
         JOIN `locations` ON `shifts`.`location_id` = `locations`.`id`
         JOIN `shift_types` ON `shift_types`.`id` = `shifts`.`shift_type_id`
         JOIN `needed_angel_types` ON `needed_angel_types`.`location_id`=`shifts`.`location_id`
         LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
         WHERE `shifts`.`location_id` IN (' . implode(',', $shiftsFilter->getLocations()) . ')
             AND `start` BETWEEN ? AND ?
             AND `needed_angel_types`.`angel_type_id` IN (' . implode(',', $shiftsFilter->getTypes()) . ')
             AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = FALSE
     ) AS tmp_shifts
 
     ORDER BY `location_name`, `start`
@@ -132,15 +184,19 @@ function Shifts_by_ShiftsFilter(ShiftsFilter $shiftsFilter)
             $shiftsFilter->getEnd(),
             $shiftsFilter->getStart(),
             $shiftsFilter->getEnd(),
+            $shiftsFilter->getStart(),
+            $shiftsFilter->getEnd(),
         ]
     );
 
-    $shifts = [];
+    $shifts = new Collection();
     foreach ($shiftsData as $shift) {
         $shifts[] = (new Shift())->forceFill($shift);
     }
 
-    return collect($shifts);
+    $shifts->load(['location', 'shiftType', 'shiftEntries.angelType']);
+
+    return $shifts;
 }
 
 /**
@@ -167,6 +223,27 @@ function NeededAngeltypes_by_ShiftsFilter(ShiftsFilter $shiftsFilter)
 
         UNION
 
+        /* By shift type */
+        SELECT
+            `needed_angel_types`.*,
+            `shifts`.`id` AS shift_id,
+            `angel_types`.`id`,
+            `angel_types`.`name`,
+            `angel_types`.`restricted`,
+            `angel_types`.`shift_self_signup`
+        FROM `shifts`
+        JOIN `needed_angel_types` ON `needed_angel_types`.`shift_type_id`=`shifts`.`shift_type_id`
+        JOIN `angel_types` ON `angel_types`.`id`= `needed_angel_types`.`angel_type_id`
+        LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
+        WHERE `shifts`.`location_id` IN (' . implode(',', $shiftsFilter->getLocations()) . ')
+        AND shifts.`start` BETWEEN ? AND ?
+        AND NOT s.shift_id IS NULL
+        AND se.needed_from_shift_type = TRUE
+
+        UNION
+
+        /* By location */
         SELECT
             `needed_angel_types`.*,
             `shifts`.`id` AS shift_id,
@@ -178,14 +255,18 @@ function NeededAngeltypes_by_ShiftsFilter(ShiftsFilter $shiftsFilter)
         JOIN `needed_angel_types` ON `needed_angel_types`.`location_id`=`shifts`.`location_id`
         JOIN `angel_types` ON `angel_types`.`id`= `needed_angel_types`.`angel_type_id`
         LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+        LEFT JOIN schedules AS se on s.schedule_id = se.id
         WHERE `shifts`.`location_id` IN (' . implode(',', $shiftsFilter->getLocations()) . ')
         AND shifts.`start` BETWEEN ? AND ?
         AND NOT s.shift_id IS NULL
+        AND se.needed_from_shift_type = FALSE
     ';
 
     return Db::select(
         $sql,
         [
+            $shiftsFilter->getStart(),
+            $shiftsFilter->getEnd(),
             $shiftsFilter->getStart(),
             $shiftsFilter->getEnd(),
             $shiftsFilter->getStart(),
@@ -220,6 +301,27 @@ function NeededAngeltype_by_Shift_and_Angeltype(Shift $shift, AngelType $angelty
 
             UNION
 
+            /* By shift type */
+            SELECT
+                `needed_angel_types`.*,
+                `shifts`.`id` AS shift_id,
+                `angel_types`.`id`,
+                `angel_types`.`name`,
+                `angel_types`.`restricted`,
+                `angel_types`.`shift_self_signup`
+            FROM `shifts`
+            JOIN `needed_angel_types` ON `needed_angel_types`.`shift_type_id`=`shifts`.`shift_type_id`
+            JOIN `angel_types` ON `angel_types`.`id`= `needed_angel_types`.`angel_type_id`
+            LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+            LEFT JOIN schedules AS se on s.schedule_id = se.id
+            WHERE `shifts`.`id`=?
+            AND `angel_types`.`id`=?
+            AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = TRUE
+
+            UNION
+
+            /* By location */
             SELECT
                 `needed_angel_types`.*,
                 `shifts`.`id` AS shift_id,
@@ -231,11 +333,15 @@ function NeededAngeltype_by_Shift_and_Angeltype(Shift $shift, AngelType $angelty
             JOIN `needed_angel_types` ON `needed_angel_types`.`location_id`=`shifts`.`location_id`
             JOIN `angel_types` ON `angel_types`.`id`= `needed_angel_types`.`angel_type_id`
             LEFT JOIN schedule_shift AS s on shifts.id = s.shift_id
+            LEFT JOIN schedules AS se on s.schedule_id = se.id
             WHERE `shifts`.`id`=?
             AND `angel_types`.`id`=?
             AND NOT s.shift_id IS NULL
+            AND se.needed_from_shift_type = FALSE
         ',
         [
+            $shift->id,
+            $angeltype->id,
             $shift->id,
             $angeltype->id,
             $shift->id,
@@ -250,7 +356,7 @@ function NeededAngeltype_by_Shift_and_Angeltype(Shift $shift, AngelType $angelty
  */
 function ShiftEntries_by_ShiftsFilter(ShiftsFilter $shiftsFilter)
 {
-    return ShiftEntry::with('user')
+    return ShiftEntry::with('user', 'user.state')
         ->join('shifts', 'shifts.id', 'shift_entries.shift_id')
         ->whereIn('shifts.location_id', $shiftsFilter->getLocations())
         ->whereBetween('start', [$shiftsFilter->getStart(), $shiftsFilter->getEnd()])
@@ -324,14 +430,6 @@ function Shift_signup_allowed_angel(
 ) {
     $free_entries = Shift_free_entries($needed_angeltype, $shift_entries);
 
-    if (config('signup_requires_arrival') && !$user->state->arrived) {
-        return new ShiftSignupState(ShiftSignupStatus::NOT_ARRIVED, $free_entries);
-    }
-
-    if (config('signup_advance_hours') && $shift->start->timestamp > time() + config('signup_advance_hours') * 3600) {
-        return new ShiftSignupState(ShiftSignupStatus::NOT_YET, $free_entries);
-    }
-
     if (is_null($user_shifts) || $user_shifts->isEmpty()) {
         $user_shifts = Shifts_by_user($user->id);
     }
@@ -381,6 +479,14 @@ function Shift_signup_allowed_angel(
     if (Shift_collides($shift, $user_shifts)) {
         // you cannot join if user already joined a parallel of this shift
         return new ShiftSignupState(ShiftSignupStatus::COLLIDES, $free_entries);
+    }
+
+    if (config('signup_advance_hours') && $shift->start->timestamp > time() + config('signup_advance_hours') * 3600) {
+        return new ShiftSignupState(ShiftSignupStatus::NOT_YET, $free_entries);
+    }
+
+    if (config('signup_requires_arrival') && !$user->state->arrived) {
+        return new ShiftSignupState(ShiftSignupStatus::NOT_ARRIVED, $free_entries);
     }
 
     // Hooray, shift is free for you!
@@ -442,13 +548,12 @@ function Shift_signout_allowed(Shift $shift, AngelType $angeltype, $signout_user
 
     // angeltype supporter can sign out any user at any time from their supported angeltype
     if (
-        auth()->can('shiftentry_edit_angeltype_supporter')
-        && ($user->isAngelTypeSupporter($angeltype) || auth()->can('admin_user_angeltypes'))
+        $user->isAngelTypeSupporter($angeltype) || auth()->can('admin_user_angeltypes')
     ) {
         return true;
     }
 
-    if ($signout_user_id == $user->id && $shift->start->timestamp > time() + config('last_unsubscribe') * 3600) {
+    if ($signout_user_id == $user->id && $shift->start->subHours(config('last_unsubscribe')) > Carbon::now()) {
         return true;
     }
 
@@ -481,8 +586,7 @@ function Shift_signup_allowed(
     }
 
     if (
-        auth()->can('shiftentry_edit_angeltype_supporter')
-        && (auth()->user()->isAngelTypeSupporter($angeltype) || auth()->can('admin_user_angeltypes'))
+        auth()->user()->isAngelTypeSupporter($angeltype) || auth()->can('admin_user_angeltypes')
     ) {
         return Shift_signup_allowed_angeltype_supporter($needed_angeltype, $shift_entries);
     }
@@ -534,12 +638,13 @@ function Shifts_by_user($userId, $include_freeloaded_comments = false)
         ]
     );
 
-    $shifts = [];
+    $shifts = new Collection();
     foreach ($shiftsData as $data) {
         $shifts[] = (new Shift())->forceFill($data);
     }
+    $shifts->load(['shiftType', 'location']);
 
-    return collect($shifts);
+    return $shifts;
 }
 
 /**
@@ -559,7 +664,7 @@ function Shift($shift)
     }
 
     $neededAngels = [];
-    $angelTypes = NeededAngelTypes_by_shift($shift->id);
+    $angelTypes = NeededAngelTypes_by_shift($shift);
     foreach ($angelTypes as $type) {
         $neededAngels[] = [
             'angel_type_id' => $type['angel_type_id'],

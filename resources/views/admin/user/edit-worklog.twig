@@ -7,7 +7,7 @@
 {% block content %}
     <div class="container">
         <h1>
-            {{ m.button(m.icon('chevron-left'), url('/users', {action: 'view', user_id: user.id}), null, 'sm') }}
+            {{ m.back(url('/users', {action: 'view', user_id: userdata.id})) }}
             {{ block('title') }}
         </h1>
 
@@ -20,7 +20,7 @@
                     <div>
                         <label class="form-label">{{ __('general.user') }}</label>
                     </div>
-                    {{ m.user(user, {'pronoun': true}) }}
+                    {{ m.user(userdata, {'pronoun': true}) }}
                 </div>
                 <div class="col-12">
                     {{ f.input('work_date', __('worklog.date'), {
@@ -40,7 +40,7 @@
                         'required': true,
                         'max_length': 200,
                     }) }}
-                    {{ f.submit(__('form.save')) }}
+                    {{ f.submit(__('form.save'), {'icon_left': 'save'}) }}
                 </div>
             </div>
         </form>

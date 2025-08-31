@@ -1,5 +1,6 @@
 <?php
 
+use Engelsystem\Models\User\User;
 use Illuminate\Support\Str;
 
 /**
@@ -351,7 +352,7 @@ function render_table($columns, $rows, $data = true)
  * @param string $id
  * @return string
  */
-function button($href, $label, $class = '', $id = '')
+function button($href, $label, $class = '', $id = '', $title = '', $disabled = false)
 {
     if (!Str::contains(str_replace(['btn-sm', 'btn-xl'], '', $class), 'btn-')) {
         $class = 'btn-secondary' . ($class ? ' ' . $class : '');
@@ -359,7 +360,8 @@ function button($href, $label, $class = '', $id = '')
 
     $idAttribute = $id ? 'id="' . $id . '"' : '';
 
-    return '<a ' . $idAttribute . ' href="' . $href . '" class="btn ' . $class . '">' . $label . '</a>';
+    return '<a ' . $idAttribute . ' href="' . $href
+        . '" class="btn ' . $class . ($disabled ? ' disabled' : '') . '" title="' . $title . '">' . $label . '</a>';
 }
 
 /**
@@ -385,9 +387,9 @@ function button_checkbox_selection($name, $label, $value)
  *
  * @return string
  */
-function button_icon($href, $icon, $class = '')
+function button_icon($href, $icon, $class = '', $title = '', $disabled = false)
 {
-    return button($href, icon($icon), $class);
+    return button($href, icon($icon), $class, '', $title, $disabled);
 }
 
 /**
@@ -419,4 +421,17 @@ function buttons($buttons = [])
 function table_buttons($buttons = [], $additionalClass = '')
 {
     return '<div class="btn-group ' . $additionalClass . '" role="group">' . join('', $buttons) . '</div>';
+}
+
+function user_info_icon(User $user): string
+{
+    if (!auth()->can('admin_arrive') || !$user->state->user_info) {
+        return '';
+    }
+    $infoIcon = ' <small><span class="bi bi-info-circle-fill text-info" ';
+    if (auth()->can('user.info.show')) {
+        $infoIcon .= 'data-bs-toggle="tooltip" title="' . htmlspecialchars($user->state->user_info) . '"';
+    }
+    $infoIcon .= '></span></small>';
+    return $infoIcon;
 }

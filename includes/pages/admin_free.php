@@ -40,7 +40,7 @@ function admin_free()
     /** @var User[] $users */
     $users = [];
     if ($request->has('submit')) {
-        $query = User::with('personalData')
+        $query = User::with(['personalData', 'contact', 'state', 'settings'])
             ->select('users.*')
             ->leftJoin('shift_entries', 'users.id', 'shift_entries.user_id')
             ->leftJoin('users_state', 'users.id', 'users_state.user_id')
@@ -99,9 +99,7 @@ function admin_free()
         $free_users_table[] = [
             'name'        => User_Nick_render($usr)
                 . User_Pronoun_render($usr)
-                . ($usr->state->user_info
-                    ? ' <small><span class="bi bi-info-circle-fill text-info"></span></small>'
-                    : ''),
+                . user_info_icon($usr),
             'shift_state' => User_shift_state_render($usr),
             'last_shift'  => User_last_shift_render($usr),
             'dect'        => sprintf('<a href="tel:%s">%1$s</a>', htmlspecialchars((string) $usr->contact->dect)),
@@ -110,7 +108,7 @@ function admin_free()
                 : icon('eye-slash'),
             'actions'     =>
                 auth()->can('admin_user')
-                    ? button(url('/admin-user', ['id' => $usr->id]), icon('pencil') . __('edit'), 'btn-sm')
+                    ? button(url('/admin-user', ['id' => $usr->id]), icon('pencil'), 'btn-sm', '', __('form.edit'))
                     : '',
         ];
     }
@@ -120,8 +118,8 @@ function admin_free()
                 div('col-md-12 form-inline', [
                     div('row', [
                         form_text('search', __('form.search'), $search, null, null, null, 'col'),
-                        form_select('angeltype', __('Angeltype'), $angel_types, $angelType, '', 'col'),
-                        form_submit('submit', __('form.search')),
+                        form_select('angeltype', __('Angel type'), $angel_types, $angelType, '', 'col'),
+                        form_submit('submit', icon('search') . __('form.search')),
                     ]),
                 ]),
             ]),

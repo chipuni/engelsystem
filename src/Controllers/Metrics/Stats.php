@@ -6,6 +6,7 @@ namespace Engelsystem\Controllers\Metrics;
 
 use Carbon\Carbon;
 use Engelsystem\Database\Database;
+use Engelsystem\Models\AngelType;
 use Engelsystem\Models\EventConfig;
 use Engelsystem\Models\Faq;
 use Engelsystem\Models\LogEntry;
@@ -16,6 +17,7 @@ use Engelsystem\Models\OAuth;
 use Engelsystem\Models\Question;
 use Engelsystem\Models\Location;
 use Engelsystem\Models\Shifts\Shift;
+use Engelsystem\Models\Shifts\ShiftType;
 use Engelsystem\Models\User\License;
 use Engelsystem\Models\User\PasswordReset;
 use Engelsystem\Models\User\PersonalData;
@@ -36,13 +38,13 @@ class Stats
     }
 
     /**
-     * The number of not arrived users
+     * The number of users that arrived/not arrived and/or did some work
      *
      * @param bool|null $working
      */
-    public function arrivedUsers(bool $working = null): int
+    public function usersState(bool $working = null, bool $arrived = true): int
     {
-        $query = State::whereArrived(true);
+        $query = State::whereArrived($arrived);
 
         if (!is_null($working)) {
             $query
@@ -69,12 +71,12 @@ class Stats
         return $query->count('users_state.user_id');
     }
 
-    /**
-     * The number of not arrived users
-     */
-    public function newUsers(): int
+    public function usersInfo(): int
     {
-        return State::whereArrived(false)->count();
+        return State::query()
+            ->whereNotNull('user_info')
+            ->whereNot('user_info', '')
+            ->count();
     }
 
     public function forceActiveUsers(): int
@@ -92,7 +94,7 @@ class Stats
         return match ($type) {
             'system' => Settings::whereEmailShiftinfo(true)->count(),
             'humans' => Settings::whereEmailHuman(true)->count(),
-            'goody'  => Settings::whereEmailGoody(true)->count(),
+            'goodie'  => Settings::whereEmailGoodie(true)->count(),
             'news'   => Settings::whereEmailNews(true)->count(),
             default  => 0,
         };
@@ -144,9 +146,9 @@ class Stats
         return $return;
     }
 
-    public function tshirts(): int
+    public function goodies(): int
     {
-        return State::whereGotShirt(true)->count();
+        return State::whereGotGoodie(true)->count();
     }
 
     public function tshirtSizes(): Collection
@@ -174,22 +176,25 @@ class Stats
             ->get();
     }
 
-    public function licenses(string $license): int
+    public function licenses(string $license, bool $confirmed = false): int
     {
         $mapping = [
-            'has_car'   => 'has_car',
-            'forklift'  => 'drive_forklift',
-            'car'       => 'drive_car',
-            '3.5t'      => 'drive_3_5t',
-            '7.5t'      => 'drive_7_5t',
-            '12t'       => 'drive_12t',
-            'ifsg_light'      => 'ifsg_certificate_light',
-            'ifsg' => 'ifsg_certificate',
+            'has_car'   => ['has_car', null],
+            'forklift' => ['drive_forklift', 'drive_confirmed'],
+            'car' => ['drive_car', 'drive_confirmed'],
+            '3.5t' => ['drive_3_5t', 'drive_confirmed'],
+            '7.5t' => ['drive_7_5t', 'drive_confirmed'],
+            '12t' => ['drive_12t', 'drive_confirmed'],
+            'ifsg_light' => ['ifsg_certificate_light', 'ifsg_confirmed'],
+            'ifsg' => ['ifsg_certificate', 'ifsg_confirmed'],
         ];
 
         $query = (new License())
             ->getQuery()
-            ->where($mapping[$license], true);
+            ->where($mapping[$license][0], true);
+        if (!is_null($mapping[$license][1])) {
+            $query->where($mapping[$license][1], $confirmed);
+        }
 
         return $query->count();
     }
@@ -294,6 +299,18 @@ class Stats
     public function locations(): int
     {
         return Location::query()
+            ->count();
+    }
+
+    public function shifttypes(): int
+    {
+        return ShiftType::query()
+            ->count();
+    }
+
+    public function angeltypes(): int
+    {
+        return AngelType::query()
             ->count();
     }
 

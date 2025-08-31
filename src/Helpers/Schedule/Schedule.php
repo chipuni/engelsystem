@@ -6,20 +6,17 @@ namespace Engelsystem\Helpers\Schedule;
 
 use Carbon\Carbon;
 
-class Schedule
+class Schedule extends ScheduleData
 {
-    /** @var Day[] */
-    protected array $day;
-
     /**
-     * @param Day[]      $days
+     * @param Day[] $days
      */
     public function __construct(
         protected string $version,
         protected Conference $conference,
-        array $days
+        protected array $days,
+        protected ?ScheduleGenerator $generator = null,
     ) {
-        $this->day = $days;
     }
 
     public function getVersion(): string
@@ -35,9 +32,9 @@ class Schedule
     /**
      * @return Day[]
      */
-    public function getDay(): array
+    public function getDays(): array
     {
-        return $this->day;
+        return $this->days;
     }
 
     /**
@@ -46,8 +43,8 @@ class Schedule
     public function getRooms(): array
     {
         $rooms = [];
-        foreach ($this->day as $day) {
-            foreach ($day->getRoom() as $room) {
+        foreach ($this->days as $day) {
+            foreach ($day->getRooms() as $room) {
                 $name = $room->getName();
                 $rooms[$name] = $room;
             }
@@ -60,7 +57,7 @@ class Schedule
     public function getStartDateTime(): ?Carbon
     {
         $start = null;
-        foreach ($this->day as $day) {
+        foreach ($this->days as $day) {
             $time = $day->getStart();
             if ($time > $start && $start) {
                 continue;
@@ -75,7 +72,7 @@ class Schedule
     public function getEndDateTime(): ?Carbon
     {
         $end = null;
-        foreach ($this->day as $day) {
+        foreach ($this->days as $day) {
             $time = $day->getEnd();
             if ($time < $end && $end) {
                 continue;
@@ -85,5 +82,10 @@ class Schedule
         }
 
         return $end;
+    }
+
+    public function getGenerator(): ?ScheduleGenerator
+    {
+        return $this->generator;
     }
 }

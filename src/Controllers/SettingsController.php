@@ -12,6 +12,7 @@ use Engelsystem\Http\Redirector;
 use Engelsystem\Http\Request;
 use Engelsystem\Helpers\Authenticator;
 use Engelsystem\Models\AngelType;
+use Engelsystem\Models\User\User;
 use Psr\Log\LoggerInterface;
 
 class SettingsController extends BaseController
@@ -22,6 +23,8 @@ class SettingsController extends BaseController
     /** @var string[] */
     protected array $permissions = [
         'user_settings',
+        'api' => 'api||shifts_json_export||ical||atom',
+        'apiKeyReset' => 'api||shifts_json_export||ical||atom',
     ];
 
     public function __construct(
@@ -42,9 +45,11 @@ class SettingsController extends BaseController
             'pages/settings/profile',
             [
                 'settings_menu' => $this->settingsMenu(),
-                'user' => $user,
+                'userdata' => $user,
+                'goodie_enabled' => $this->config->get('goodie_type') !== GoodieType::None->value
+                    && config('enable_email_goodie'),
                 'goodie_tshirt' => $this->config->get('goodie_type') === GoodieType::Tshirt->value,
-                'goodie_enabled' => $this->config->get('goodie_type') !== GoodieType::None->value,
+                'tShirtLink' => $this->config->get('tshirt_link'),
                 'isPronounRequired' => $requiredFields['pronoun'],
                 'isFirstnameRequired' => $requiredFields['firstname'],
                 'isLastnameRequired' => $requiredFields['lastname'],
@@ -58,7 +63,7 @@ class SettingsController extends BaseController
     public function saveProfile(Request $request): Response
     {
         $user = $this->auth->user();
-        $data = $this->validate($request, $this->getSaveProfileRules());
+        $data = $this->validate($request, $this->getSaveProfileRules($user));
         $goodie = GoodieType::from(config('goodie_type'));
         $goodie_enabled = $goodie !== GoodieType::None;
         $goodie_tshirt = $goodie === GoodieType::Tshirt;
@@ -67,7 +72,7 @@ class SettingsController extends BaseController
             $user->personalData->pronoun = $data['pronoun'];
         }
 
-        if (config('enable_user_name')) {
+        if (config('enable_full_name')) {
             $user->personalData->first_name = $data['first_name'];
             $user->personalData->last_name = $data['last_name'];
         }
@@ -101,13 +106,14 @@ class SettingsController extends BaseController
         $user->settings->email_human = $data['email_human'] ?: false;
         $user->settings->email_messages = $data['email_messages'] ?: false;
 
-        if ($goodie_enabled) {
-            $user->settings->email_goody = $data['email_goody'] ?: false;
+        if ($goodie_enabled && config('enable_email_goodie')) {
+            $user->settings->email_goodie = $data['email_goodie'] ?: false;
         }
 
         if (
             $goodie_tshirt
-            && isset(config('tshirt_sizes')[$data['shirt_size']])
+            && isset(config('tshirt_sizes')[$data['shirt_size'] ?? ''])
+            && !$user->state->got_goodie
         ) {
             $user->personalData->shirt_size = $data['shirt_size'];
         }
@@ -128,7 +134,7 @@ class SettingsController extends BaseController
             'pages/settings/password',
             [
                 'settings_menu' => $this->settingsMenu(),
-                'min_length'    => config('min_password_length'),
+                'min_length'    => config('password_min_length'),
             ]
         );
     }
@@ -137,9 +143,9 @@ class SettingsController extends BaseController
     {
         $user = $this->auth->user();
 
-        $minLength = config('min_password_length');
+        $minLength = config('password_min_length');
         $data = $this->validate($request, [
-            'password'      => 'required' . (empty($user->password) ? '|optional' : ''),
+            'password'      => empty($user->password) ? 'optional' : 'required',
             'new_password'  => 'required|min:' . $minLength,
             'new_password2' => 'required',
         ]);
@@ -237,29 +243,32 @@ class SettingsController extends BaseController
 
     public function certificate(): Response
     {
-        $user = $this->auth->user();
-
-        if (!config('ifsg_enabled') && !$this->checkDrivingLicense()) {
+        if (
+            !(config('ifsg_enabled') && $this->checkIfsgCertificate())
+            && !(config('driving_license_enabled') && $this->checkDrivingLicense())
+        ) {
             throw new HttpNotFound();
         }
 
+        $user = $this->auth->user();
         return $this->response->withView(
             'pages/settings/certificates',
             [
-                'settings_menu'          => $this->settingsMenu(),
-                'driving_license'        => $this->checkDrivingLicense(),
-                'certificates'           => $user->license,
+                'settings_menu' => $this->settingsMenu(),
+                'driving_license' => $this->checkDrivingLicense(),
+                'ifsg' => $this->checkIfsgCertificate(),
+                'certificates' => $user->license,
             ]
         );
     }
 
     public function saveIfsgCertificate(Request $request): Response
     {
-        if (!config('ifsg_enabled')) {
+        $user = $this->auth->user();
+        if (!config('ifsg_enabled') || $user->license->ifsg_confirmed || !$this->checkIfsgCertificate()) {
             throw new HttpNotFound();
         }
 
-        $user = $this->auth->user();
         $data = $this->validate($request, [
             'ifsg_certificate_light' => 'optional|checked',
             'ifsg_certificate' => 'optional|checked',
@@ -269,8 +278,8 @@ class SettingsController extends BaseController
             $user->license->ifsg_certificate_light = !$data['ifsg_certificate'] && $data['ifsg_certificate_light'];
         }
         $user->license->ifsg_certificate = (bool) $data['ifsg_certificate'];
-        $user->license->save();
 
+        $user->license->save();
         $this->addNotification('settings.certificates.success');
 
         return $this->redirect->to('/settings/certificates');
@@ -278,7 +287,7 @@ class SettingsController extends BaseController
 
     public function saveDrivingLicense(Request $request): Response
     {
-        if (!$this->checkDrivingLicense()) {
+        if (!config('driving_license_enabled') || !$this->checkDrivingLicense()) {
             throw new HttpNotFound();
         }
 
@@ -293,16 +302,36 @@ class SettingsController extends BaseController
         ]);
 
         $user->license->has_car = (bool) $data['has_car'];
-        $user->license->drive_car = (bool) $data['drive_car'];
-        $user->license->drive_3_5t = (bool) $data['drive_3_5t'];
-        $user->license->drive_7_5t = (bool) $data['drive_7_5t'];
-        $user->license->drive_12t = (bool) $data['drive_12t'];
-        $user->license->drive_forklift = (bool) $data['drive_forklift'];
+        if (!$user->license->drive_confirmed) {
+            $user->license->drive_car = (bool) $data['drive_car'];
+            $user->license->drive_3_5t = (bool) $data['drive_3_5t'];
+            $user->license->drive_7_5t = (bool) $data['drive_7_5t'];
+            $user->license->drive_12t = (bool) $data['drive_12t'];
+            $user->license->drive_forklift = (bool) $data['drive_forklift'];
+        }
         $user->license->save();
 
         $this->addNotification('settings.certificates.success');
 
         return $this->redirect->to('/settings/certificates');
+    }
+
+    public function api(): Response
+    {
+        return $this->response->withView(
+            'pages/settings/api',
+            [
+                'settings_menu' => $this->settingsMenu(),
+            ],
+        );
+    }
+
+    public function apiKeyReset(): Response
+    {
+        $this->auth->resetApiKey($this->auth->user());
+
+        $this->addNotification('settings.api.key_reset_success');
+        return $this->redirect->back();
     }
 
     public function oauth(): Response
@@ -372,7 +401,10 @@ class SettingsController extends BaseController
             $menu[url('/settings/theme')] = 'settings.theme';
         }
 
-        if (config('ifsg_enabled') || $this->checkDrivingLicense()) {
+        if (
+            (config('ifsg_enabled') && $this->checkIfsgCertificate())
+            || (config('driving_license_enabled') && $this->checkDrivingLicense())
+        ) {
             $menu[url('/settings/certificates')] = ['title' => 'settings.certificates', 'icon' => 'card-checklist'];
         }
 
@@ -382,13 +414,17 @@ class SettingsController extends BaseController
             $menu[url('/settings/oauth')] = ['title' => 'settings.oauth', 'hidden' => $this->checkOauthHidden()];
         }
 
+        if ($this->auth->canAny(['api', 'shifts_json_export', 'ical', 'atom'])) {
+            $menu[url('/settings/api')] = ['title' => 'settings.api', 'icon' => 'braces'];
+        }
+
         return $menu;
     }
 
     protected function checkOauthHidden(): bool
     {
         foreach (config('oauth') as $config) {
-            if (empty($config['hidden']) || !$config['hidden']) {
+            if (empty($config['hidden'])) {
                 return false;
             }
         }
@@ -403,6 +439,13 @@ class SettingsController extends BaseController
         })->isNotEmpty();
     }
 
+    protected function checkIfsgCertificate(): bool
+    {
+        return $this->auth->user()->userAngelTypes->filter(function (AngelType $angelType) {
+            return $angelType->requires_ifsg_certificate;
+        })->isNotEmpty();
+    }
+
     private function isRequired(string $key): string
     {
         $requiredFields = $this->config->get('required_user_fields');
@@ -412,7 +455,7 @@ class SettingsController extends BaseController
     /**
      * @return string[]
      */
-    private function getSaveProfileRules(): array
+    private function getSaveProfileRules(User $user): array
     {
         $goodie_tshirt = $this->config->get('goodie_type') === GoodieType::Tshirt->value;
         $rules = [
@@ -428,13 +471,13 @@ class SettingsController extends BaseController
             'email_news' => 'optional|checked',
             'email_human' => 'optional|checked',
             'email_messages' => 'optional|checked',
-            'email_goody' => 'optional|checked',
+            'email_goodie' => 'optional|checked',
         ];
         if (config('enable_planned_arrival')) {
             $rules['planned_arrival_date'] = 'required|date:Y-m-d';
             $rules['planned_departure_date'] = 'optional|date:Y-m-d';
         }
-        if ($goodie_tshirt) {
+        if ($goodie_tshirt && !$user->state->got_goodie) {
             $rules['shirt_size'] = $this->isRequired('tshirt_size') . '|shirt_size';
         }
         return $rules;

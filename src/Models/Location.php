@@ -6,21 +6,24 @@ namespace Engelsystem\Models;
 
 use Carbon\Carbon;
 use Engelsystem\Models\Shifts\NeededAngelType;
+use Engelsystem\Models\Shifts\Schedule;
 use Engelsystem\Models\Shifts\Shift;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @property int                               $id
  * @property string                            $name
- * @property string                            $map_url
- * @property string                            $description
- * @property string                            $dect
+ * @property string|null                       $map_url
+ * @property string|null                       $description
+ * @property string|null                       $dect
  * @property Carbon|null                       $created_at
  * @property Carbon|null                       $updated_at
  *
+ * @property-read Collection|Schedule[]        $activeForSchedules
  * @property-read Collection|NeededAngelType[] $neededAngelTypes
  * @property-read Collection|Shift[]           $shifts
  *
@@ -53,6 +56,11 @@ class Location extends BaseModel
         'map_url',
         'description',
     ];
+
+    public function activeForSchedules(): BelongsToMany
+    {
+        return $this->belongsToMany(Schedule::class, 'schedule_locations');
+    }
 
     public function neededAngelTypes(): HasMany
     {

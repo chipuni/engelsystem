@@ -52,7 +52,7 @@ class ControllerTest extends TestCase
                 $this->assertArrayHasKey('work_seconds', $data);
                 $this->assertArrayHasKey('worklog_seconds', $data);
                 $this->assertArrayHasKey('vouchers', $data);
-                $this->assertArrayHasKey('tshirts_issued', $data);
+                $this->assertArrayHasKey('goodies_issued', $data);
                 $this->assertArrayHasKey('tshirt_sizes', $data);
                 $this->assertArrayHasKey('locales', $data);
                 $this->assertArrayHasKey('themes', $data);
@@ -86,14 +86,30 @@ class ControllerTest extends TestCase
             ->with('metrics return')
             ->willReturn($response);
 
-        $stats->expects($this->exactly(8))
+        $stats->expects($this->exactly(15))
             ->method('licenses')
-            ->withConsecutive(['has_car'], ['forklift'], ['car'], ['3.5t'], ['7.5t'], ['12t'], ['ifsg_light'], ['ifsg'])
-            ->willReturnOnConsecutiveCalls(6, 3, 15, 9, 7, 1, 5, 4);
-        $stats->expects($this->exactly(2))
-            ->method('arrivedUsers')
-            ->withConsecutive([false], [true])
-            ->willReturnOnConsecutiveCalls(7, 43);
+            ->withConsecutive(
+                ['has_car'],
+                ['forklift'],
+                ['forklift'],
+                ['car'],
+                ['car', true],
+                ['3.5t'],
+                ['3.5t', true],
+                ['7.5t'],
+                ['7.5t', true],
+                ['12t'],
+                ['12t', true],
+                ['ifsg_light'],
+                ['ifsg_light', true],
+                ['ifsg'],
+                ['ifsg', true],
+            )
+            ->willReturnOnConsecutiveCalls(6, 3, 15, 9, 7, 1, 5, 4, 3, 5, 9, 2, 1, 7, 8);
+        $stats->expects($this->exactly(4))
+            ->method('usersState')
+            ->withConsecutive([false, false], [true, false], [false], [true])
+            ->willReturnOnConsecutiveCalls(7, 43, 42, 10);
         $stats->expects($this->exactly(2))
             ->method('currentlyWorkingUsers')
             ->withConsecutive([false], [true])
@@ -123,10 +139,9 @@ class ControllerTest extends TestCase
                 [LogLevel::DEBUG]
             )
             ->willReturnOnConsecutiveCalls(0, 1, 0, 5, 999, 4, 55, 3);
-        $this->setExpects($stats, 'newUsers', null, 9);
         $this->setExpects($stats, 'worklogSeconds', null, 39 * 60 * 60);
         $this->setExpects($stats, 'vouchers', null, 17);
-        $this->setExpects($stats, 'tshirts', null, 3);
+        $this->setExpects($stats, 'goodies', null, 3);
         $this->setExpects($stats, 'tshirtSizes', null, new Collection([
             ['shirt_size' => 'L', 'count' => 2],
         ]));
@@ -192,7 +207,7 @@ class ControllerTest extends TestCase
         $response->expects($this->once())
             ->method('withContent')
             ->with(json_encode([
-                'user_count'         => 13,
+                'user_count'         => 20,
                 'arrived_user_count' => 10,
                 'done_work_hours'    => 99,
                 'users_in_action'    => 5,
@@ -210,8 +225,7 @@ class ControllerTest extends TestCase
             ->method('workSeconds')
             ->with(true)
             ->willReturn((int) (60 * 60 * 99.47));
-        $this->setExpects($stats, 'newUsers', null, 3);
-        $this->setExpects($stats, 'arrivedUsers', null, 10, $this->exactly(2));
+        $this->setExpects($stats, 'usersState', null, 10, $this->exactly(3));
         $this->setExpects($stats, 'currentlyWorkingUsers', null, 5);
 
         $controller = new Controller($response, $engine, $config, $request, $stats, $version);

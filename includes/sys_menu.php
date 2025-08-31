@@ -3,6 +3,7 @@
 use Engelsystem\Models\Location;
 use Engelsystem\Models\Question;
 use Engelsystem\UserHintsRenderer;
+use Illuminate\Support\Str;
 
 /**
  * Render the user hints
@@ -23,11 +24,11 @@ function header_render_hints()
 
         // Important hints:
         $hints_renderer->addHint(render_user_freeloader_hint(), true);
-        $hints_renderer->addHint(render_user_arrived_hint(), true);
+        $hints_renderer->addHint(render_user_arrived_hint(true), true);
         $hints_renderer->addHint(render_user_pronoun_hint(), true);
         $hints_renderer->addHint(render_user_firstname_hint(), true);
         $hints_renderer->addHint(render_user_lastname_hint(), true);
-        $hints_renderer->addHint(render_user_tshirt_hint(), true);
+        $hints_renderer->addHint(render_user_goodie_hint(), true);
         $hints_renderer->addHint(render_user_dect_hint(), true);
         $hints_renderer->addHint(render_user_mobile_hint(), true);
 
@@ -55,8 +56,11 @@ function make_navigation(): string
     $page = current_page();
     $menu = [];
     $pages = [
-        'user_shifts'    => __('Shifts'),
-        'admin_shifts'   => __('Create shifts'),
+        'news'           => __('news.title'),
+        'meetings'       => [__('news.title.meetings'), 'user_meetings'],
+        'user_shifts'    => __('general.shifts'),
+        'angeltypes'     => __('angeltypes.angeltypes'),
+        'questions'      => [__('Ask the Heaven'), 'question.add'],
     ];
 
     foreach ($pages as $menu_page => $options) {
@@ -81,20 +85,19 @@ function make_navigation(): string
         // path              => name,
         // path              => [name, permission],
 
-        'admin_arrive'       => ['Arrive angels', 'admin_user'],
-        'admin_active'       => ['Active angels', 'admin_user'],
+        'admin_arrive'       => [admin_arrive_title(), 'users.arrive.list'],
+        'admin_active'       => 'Active angels',
         'users'              => ['All Angels', 'admin_user'],
-        'admin_free'         => ['Free angels', 'admin_user'],
-        'admin/questions'    => ['Answer questions', 'admin_user'],
-        'admin/shifttypes'   => ['shifttype.shifttypes', 'shifttypes'],
+        'admin_free'         => 'Free angels',
+        'admin/questions'    => ['Answer questions', 'question.edit'],
+        'admin/shifttypes'   => ['shifttype.shifttypes', 'shifttypes.view'],
         'admin_shifts'       => 'Create shifts',
         'admin/locations'    => ['location.locations', 'admin_locations'],
         'admin_groups'       => 'Grouprights',
         'admin/schedule'     => ['schedule.import', 'schedule.import'],
-        'admin/logs'         => ['log.log', 'admin_user'],
-        'admin_event_config' => ['Event config', 'admin_user'],
-        'angeltypes'         => ['angeltypes.angeltypes', 'admin_user']
-];
+        'admin/logs'         => ['log.log', 'admin_log'],
+        'admin/config'       => ['config.config', 'config.edit'],
+    ];
 
     if (config('autoarrive')) {
         unset($admin_pages['admin_arrive']);
@@ -109,7 +112,7 @@ function make_navigation(): string
         $admin_menu[] = toolbar_dropdown_item(
             url(str_replace('_', '-', $menu_page)),
             htmlspecialchars(__($title)),
-            $menu_page == $page
+            $menu_page == $page || Str::startsWith($page, $menu_page . '/')
         );
     }
 

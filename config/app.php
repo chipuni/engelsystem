@@ -28,7 +28,6 @@ return [
         \Engelsystem\Renderer\TwigServiceProvider::class,
         \Engelsystem\Middleware\RouteDispatcherServiceProvider::class,
         \Engelsystem\Middleware\RequestHandlerServiceProvider::class,
-        \Engelsystem\Middleware\SessionHandlerServiceProvider::class,
         \Engelsystem\Http\Validation\ValidationServiceProvider::class,
         \Engelsystem\Http\RedirectServiceProvider::class,
 
@@ -38,6 +37,7 @@ return [
         \Engelsystem\Http\HttpClientServiceProvider::class,
         \Engelsystem\Helpers\DumpServerServiceProvider::class,
         \Engelsystem\Helpers\UuidServiceProvider::class,
+        \Engelsystem\Controllers\Api\UsesAuthServiceProvider::class,
     ],
 
     // Application middleware
@@ -54,6 +54,7 @@ return [
 
         // The application code
         \Engelsystem\Middleware\ErrorHandler::class,
+        \Engelsystem\Middleware\ApiRouteHandler::class,
         \Engelsystem\Middleware\VerifyCsrfToken::class,
         \Engelsystem\Middleware\RouteDispatcher::class,
         \Engelsystem\Middleware\SessionHandler::class,
@@ -75,12 +76,15 @@ return [
         'message.created' => \Engelsystem\Events\Listener\Messages::class . '@created',
 
         'news.created' => \Engelsystem\Events\Listener\News::class . '@created',
+        'news.updated' => \Engelsystem\Events\Listener\News::class . '@updated',
 
         'oauth2.login' => \Engelsystem\Events\Listener\OAuth2::class . '@login',
 
-        'shift.entry.deleting' => [
-            \Engelsystem\Events\Listener\Shift::class . '@deletedEntryCreateWorklog',
-            \Engelsystem\Events\Listener\Shift::class . '@deletedEntrySendEmail',
+        'shift.deleting' => [
+            \Engelsystem\Events\Listener\Shifts::class . '@deletingCreateWorklogs',
+            \Engelsystem\Events\Listener\Shifts::class . '@deletingSendEmails',
         ],
+
+        'shift.updating' => \Engelsystem\Events\Listener\Shifts::class . '@updatedSendEmail',
     ],
 ];

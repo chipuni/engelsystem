@@ -43,9 +43,21 @@ $route->addGroup(
         $route->get('/certificates', 'SettingsController@certificate');
         $route->post('/certificates/ifsg', 'SettingsController@saveIfsgCertificate');
         $route->post('/certificates/driving', 'SettingsController@saveDrivingLicense');
+        $route->get('/api', 'SettingsController@api');
+        $route->post('/api', 'SettingsController@apiKeyReset');
         $route->get('/oauth', 'SettingsController@oauth');
         $route->get('/sessions', 'SettingsController@sessions');
         $route->post('/sessions', 'SettingsController@sessionsDelete');
+    }
+);
+
+// User admin settings
+$route->addGroup(
+    '/users/{user_id:\d+}',
+    function (RouteCollector $route): void {
+            $route->get('/certificates', 'Admin\\UserSettingsController@certificate');
+            $route->post('/certificates/ifsg', 'Admin\\UserSettingsController@saveIfsgCertificate');
+            $route->post('/certificates/driving', 'Admin\\UserSettingsController@saveDrivingLicense');
     }
 );
 
@@ -69,6 +81,11 @@ $route->addGroup('/angeltypes', function (RouteCollector $route): void {
     $route->get('/about', 'AngelTypesController@about');
 });
 
+// Shifts
+$route->addGroup('/shifts', function (RouteCollector $route): void {
+    $route->get('/random', 'ShiftsController@random');
+});
+
 // News
 $route->get('/meetings', 'NewsController@meetings');
 $route->addGroup(
@@ -82,7 +99,45 @@ $route->addGroup(
 );
 
 // API
-$route->get('/api[/{resource:.+}]', 'ApiController@index');
+$route->addGroup(
+    '/api',
+    function (RouteCollector $route): void {
+        $route->get('', 'Api\IndexController@index');
+
+        $route->addGroup(
+            '/v0-beta',
+            function (RouteCollector $route): void {
+                $route->addRoute(['OPTIONS'], '[/{resource:.+}]', 'Api\IndexController@options');
+                $route->get('', 'Api\IndexController@indexV0');
+                $route->get('/openapi', 'Api\IndexController@openApiV0');
+                $route->get('/info', 'Api\IndexController@info');
+
+                $route->get('/angeltypes', 'Api\AngelTypeController@index');
+                $route->get('/angeltypes/{angeltype_id:\d+}/shifts', 'Api\ShiftsController@entriesByAngeltype');
+
+                $route->get('/locations', 'Api\LocationsController@index');
+                $route->get('/locations/{location_id:\d+}/shifts', 'Api\ShiftsController@entriesByLocation');
+
+                $route->get('/news', 'Api\NewsController@index');
+
+                $route->get('/shifttypes', 'Api\ShiftTypeController@index');
+                $route->get('/shifttypes/{shifttype_id:\d+}/shifts', 'Api\ShiftsController@entriesByShiftType');
+
+                $route->get('/users/{user_id:(?:\d+|self)}', 'Api\UsersController@user');
+                $route->get('/users/{user_id:(?:\d+|self)}/angeltypes', 'Api\AngelTypeController@ofUser');
+                $route->get('/users/{user_id:(?:\d+|self)}/shifts', 'Api\ShiftsController@entriesByUser');
+
+                $route->addRoute(
+                    ['POST', 'PUT', 'DELETE', 'PATCH'],
+                    '/[{resource:.+}]',
+                    'Api\IndexController@notImplemented'
+                );
+                $route->get('/[{resource:.+}]', 'Api\IndexController@notFound');
+            }
+        );
+        $route->get('/[{resource:.+}]', 'Api\IndexController@notFound');
+    }
+);
 
 // Feeds
 $route->get('/atom', 'FeedController@atom');
@@ -97,6 +152,16 @@ $route->get('/design', 'DesignController@index');
 $route->addGroup(
     '/admin',
     function (RouteCollector $route): void {
+        // Config
+        $route->addGroup(
+            '/config',
+            function (RouteCollector $route): void {
+                $route->get('', 'Admin\\ConfigController@index');
+                $route->get('/{page}', 'Admin\\ConfigController@edit');
+                $route->post('/{page}', 'Admin\\ConfigController@save');
+            }
+        );
+
         // FAQ
         $route->addGroup(
             '/faq',
@@ -119,11 +184,11 @@ $route->addGroup(
         $route->addGroup(
             '/schedule',
             function (RouteCollector $route): void {
-                $route->get('', 'Admin\\Schedule\\ImportSchedule@index');
-                $route->get('/edit[/{schedule_id:\d+}]', 'Admin\\Schedule\\ImportSchedule@edit');
-                $route->post('/edit[/{schedule_id:\d+}]', 'Admin\\Schedule\\ImportSchedule@save');
-                $route->get('/load/{schedule_id:\d+}', 'Admin\\Schedule\\ImportSchedule@loadSchedule');
-                $route->post('/import/{schedule_id:\d+}', 'Admin\\Schedule\\ImportSchedule@importSchedule');
+                $route->get('', 'Admin\\ScheduleController@index');
+                $route->get('/edit[/{schedule_id:\d+}]', 'Admin\\ScheduleController@edit');
+                $route->post('/edit[/{schedule_id:\d+}]', 'Admin\\ScheduleController@save');
+                $route->get('/load/{schedule_id:\d+}', 'Admin\\ScheduleController@loadSchedule');
+                $route->post('/import/{schedule_id:\d+}', 'Admin\\ScheduleController@importSchedule');
             }
         );
 
@@ -174,12 +239,12 @@ $route->addGroup(
         $route->addGroup(
             '/user/{user_id:\d+}',
             function (RouteCollector $route): void {
-                // Shirts
+                // Goodies
                 $route->addGroup(
                     '/goodie',
                     function (RouteCollector $route): void {
-                        $route->get('', 'Admin\\UserShirtController@editShirt');
-                        $route->post('', 'Admin\\UserShirtController@saveShirt');
+                        $route->get('', 'Admin\\UserGoodieController@editGoodie');
+                        $route->post('', 'Admin\\UserGoodieController@saveGoodie');
                     }
                 );
 
@@ -187,15 +252,15 @@ $route->addGroup(
                 $route->addGroup(
                     '/worklog',
                     function (RouteCollector $route): void {
-                        $route->get('[/{worklog_id:\d+}]', 'Admin\\UserWorkLogController@editWorklog');
-                        $route->post('[/{worklog_id:\d+}]', 'Admin\\UserWorkLogController@saveWorklog');
+                        $route->get('[/{worklog_id:\d+}]', 'Admin\\UserWorklogController@editWorklog');
+                        $route->post('[/{worklog_id:\d+}]', 'Admin\\UserWorklogController@saveWorklog');
                         $route->get(
                             '/{worklog_id:\d+}/delete',
-                            'Admin\\UserWorkLogController@showDeleteWorklog'
+                            'Admin\\UserWorklogController@showDeleteWorklog'
                         );
                         $route->post(
                             '/{worklog_id:\d+}/delete',
-                            'Admin\\UserWorkLogController@deleteWorklog'
+                            'Admin\\UserWorklogController@deleteWorklog'
                         );
                     }
                 );

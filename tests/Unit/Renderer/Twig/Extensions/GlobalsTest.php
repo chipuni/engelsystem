@@ -31,6 +31,7 @@ class GlobalsTest extends ExtensionTest
     /**
      * @covers \Engelsystem\Renderer\Twig\Extensions\Globals::__construct
      * @covers \Engelsystem\Renderer\Twig\Extensions\Globals::getGlobals
+     * @covers \Engelsystem\Renderer\Twig\Extensions\Globals::getGlobalValues
      */
     public function testGetGlobals(): void
     {
@@ -49,6 +50,7 @@ class GlobalsTest extends ExtensionTest
         $config = new Config(
             [
                 'event_start' => Carbon::createFromFormat('Y-m-d', '2023-08-13'),
+                'enable_day_of_event' => true,
                 'theme'  => 23,
                 'themes' => [
                     42   => $theme,
@@ -82,6 +84,7 @@ class GlobalsTest extends ExtensionTest
         $this->assertGlobalsExists('theme', $theme2, $globals);
 
         // User
+        $extension = new Globals($auth, $request);
         $globals = $extension->getGlobals();
         $this->assertGlobalsExists('user', $user, $globals);
         $this->assertGlobalsExists('user_messages', 0, $globals);
@@ -89,15 +92,21 @@ class GlobalsTest extends ExtensionTest
         $this->assertGlobalsExists('theme', $theme, $globals);
 
         // User with not available theme configured
+        $extension = new Globals($auth, $request);
         $user->settings->theme = 9999;
         $globals = $extension->getGlobals();
         $this->assertGlobalsExists('themeId', 42, $globals);
 
         // Request query parameter
+        $extension = new Globals($auth, $request);
         $request->query->set('theme', 1337);
         $globals = $extension->getGlobals();
         $this->assertGlobalsExists('user', [], $globals);
         $this->assertGlobalsExists('themeId', 1337, $globals);
         $this->assertGlobalsExists('theme', $theme3, $globals);
+
+        // Second retrieval is loaded directly
+        $globals = $extension->getGlobals();
+        $this->assertGlobalsExists('themeId', 1337, $globals);
     }
 }

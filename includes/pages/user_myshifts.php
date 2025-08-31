@@ -20,10 +20,18 @@ function user_myshifts()
 {
     $user = auth()->user();
     $request = request();
+    $is_angeltype_supporter = false;
+    if ($request->has('edit')) {
+        $id = $request->input('edit');
+        $shiftEntry = ShiftEntry::where('id', $id)
+            ->where('user_id', User::find($request->input('id'))->id)
+            ->first();
+        $is_angeltype_supporter = $shiftEntry && auth()->user()->isAngelTypeSupporter($shiftEntry->angelType);
+    }
 
     if (
         $request->has('id')
-        && auth()->can('user_shifts_admin')
+        && (auth()->can('user_shifts_admin') || $is_angeltype_supporter)
         && preg_match('/^\d+$/', $request->input('id'))
         && User::find($request->input('id'))
     ) {
@@ -33,20 +41,7 @@ function user_myshifts()
     }
 
     $shifts_user = User::find($shift_entry_id);
-    if ($request->has('reset')) {
-        if ($request->input('reset') == 'ack') {
-            User_reset_api_key($user);
-            success(__('Key changed.'));
-            throw_redirect(url('/users', ['action' => 'view', 'user_id' => $shifts_user->id]));
-        }
-        return page_with_title(__('Reset API key'), [
-            error(
-                __('If you reset the key, the url to your iCal- and JSON-export and your atom/rss feed changes! You have to update it in every application using one of these exports.'),
-                true
-            ),
-            button(url('/user-myshifts', ['reset' => 'ack']), __('Continue'), 'btn-danger'),
-        ]);
-    } elseif ($request->has('edit') && preg_match('/^\d+$/', $request->input('edit'))) {
+    if ($request->has('edit') && preg_match('/^\d+$/', $request->input('edit'))) {
         $shift_entry_id = $request->input('edit');
         /** @var ShiftEntry $shiftEntry */
         $shiftEntry = ShiftEntry::where('id', $shift_entry_id)
@@ -60,7 +55,10 @@ function user_myshifts()
 
             if ($request->hasPostData('submit')) {
                 $valid = true;
-                if (auth()->can('user_shifts_admin')) {
+                if (
+                    auth()->can('user_shifts_admin')
+                    || $is_angeltype_supporter
+                ) {
                     $freeloaded = $request->has('freeloaded');
                     $freeloaded_comment = strip_request_item_nl('freeloaded_comment');
                     if ($freeloaded && $freeloaded_comment == '') {
@@ -90,6 +88,9 @@ function user_myshifts()
                         . '. Freeloaded: ' . ($freeloaded ? 'YES Comment: ' . $freeloaded_comment : 'NO')
                     );
                     success(__('Shift saved.'));
+                    if ($is_angeltype_supporter) {
+                        throw_redirect(url('/shifts', ['action' => 'view', 'shift_id' => $shiftEntry->shift_id]));
+                    }
                     throw_redirect(url('/users', ['action' => 'view', 'user_id' => $shifts_user->id]));
                 }
             }
@@ -103,13 +104,13 @@ function user_myshifts()
                 $shiftEntry->user_comment,
                 $shiftEntry->freeloaded,
                 $shiftEntry->freeloaded_comment,
-                auth()->can('user_shifts_admin')
+                auth()->can('user_shifts_admin'),
+                $is_angeltype_supporter
             );
         } else {
             throw_redirect(url('/user-myshifts'));
         }
     }
-
     throw_redirect(url('/users', ['action' => 'view', 'user_id' => $shifts_user->id]));
     return '';
 }

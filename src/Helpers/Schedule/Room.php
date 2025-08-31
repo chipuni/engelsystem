@@ -4,25 +4,17 @@ declare(strict_types=1);
 
 namespace Engelsystem\Helpers\Schedule;
 
-class Room
+class Room extends ScheduleData
 {
-    /** @var string required */
-    protected string $name;
-
-    /** @var Event[] */
-    protected array $event;
-
     /**
-     * Room constructor.
-     *
      * @param Event[] $events
+     * @param ?string $guid Globally unique id
      */
     public function __construct(
-        string $name,
-        array $events = []
+        protected string $name,
+        protected ?string $guid = null,
+        protected array $events = []
     ) {
-        $this->name = $name;
-        $this->event = $events;
     }
 
     public function getName(): string
@@ -33,16 +25,21 @@ class Room
     /**
      * @return Event[]
      */
-    public function getEvent(): array
+    public function getEvents(): array
     {
-        return $this->event;
+        return $this->events;
     }
 
     /**
-     * @param Event[] $event
+     * @param Event[] $events
      */
-    public function setEvent(array $event): void
+    public function setEvents(array $events): void
     {
-        $this->event = $event;
+        $this->events = $events;
+    }
+
+    public function getGuid(): ?string
+    {
+        return $this->guid;
     }
 }

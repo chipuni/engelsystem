@@ -8,7 +8,7 @@
     <div class="container">
         <div class="page-header">
             <h1>
-                {{ m.button(m.icon('chevron-left'), url('/messages'), null, 'sm') }}
+                {{ m.back(url('/messages')) }}
                 {{ __('message.title') }}: {{ m.user(other_user, {'pronoun': true}) }}
             </h1>
         </div>
@@ -31,7 +31,7 @@
                                                 enctype="multipart/form-data" method="post" class="ms-2"
                                             >
                                                 {{ csrf() }}
-                                                {{ f.submit(m.icon('trash'), {'btn_type': 'primary', 'size': 'sm'}) }}
+                                                {{ f.delete(null, {'btn_type': 'sm btn-danger'}) }}
                                             </form>
                                         {% endif %}
                                     </div>
@@ -48,8 +48,11 @@
                     {{ csrf() }}
 
                     <div class="input-group">
-                        <label for="message" class="visually-hidden">{{ __('message.message') }}</label>
-                        <textarea class="form-control" id="message" name="text" required="" rows="3"></textarea>
+                        {{ f.textarea(
+                            'text',
+                            __('message.message'),
+                            {'required': true, 'rows': 3, 'label_hidden': true, 'no_div': true}
+                        ) }}
                         {{ f.submit(m.icon('send-fill')) }}
                     </div>
                 </form>

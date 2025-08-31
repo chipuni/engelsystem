@@ -36,10 +36,11 @@ class QuestionsController extends BaseController
             ->whereUserId($this->auth->user()->id)
             ->orderByDesc('answered_at')
             ->orderBy('created_at')
-            ->get();
+            ->get()
+            ->load(['user.state', 'answerer.state']);
 
         return $this->response->withView(
-            'pages/questions/overview.twig',
+            'pages/questions/index.twig',
             ['questions' => $questions]
         );
     }
@@ -57,7 +58,7 @@ class QuestionsController extends BaseController
         $data = $this->validate(
             $request,
             [
-                'id'     => 'int|required',
+                'id'     => 'required|int',
                 'delete' => 'checked',
             ]
         );

@@ -11,7 +11,10 @@ use Engelsystem\Http\Redirector;
 use Engelsystem\Http\Request;
 use Engelsystem\Http\Response;
 use Engelsystem\Http\Validation\Validator;
+use Engelsystem\Models\AngelType;
+use Engelsystem\Models\Shifts\NeededAngelType;
 use Engelsystem\Models\Shifts\ShiftType;
+use Illuminate\Database\Eloquent\Collection;
 use Psr\Log\LoggerInterface;
 
 class ShiftTypesController extends BaseController
@@ -20,7 +23,10 @@ class ShiftTypesController extends BaseController
 
     /** @var array<string> */
     protected array $permissions = [
-        'shifttypes',
+        'shifttypes.view',
+        'edit' => 'shifttypes.edit',
+        'delete' => 'shifttypes.edit',
+        'save' => 'shifttypes.edit',
     ];
 
     public function __construct(
@@ -48,10 +54,15 @@ class ShiftTypesController extends BaseController
         $shiftTypeId = (int) $request->getAttribute('shift_type_id');
 
         $shiftType = $this->shiftType->find($shiftTypeId);
+        $angeltypes = AngelType::all()
+            ->sortBy('name');
 
         return $this->response->withView(
             'admin/shifttypes/edit',
-            ['shifttype' => $shiftType]
+            [
+                'shifttype' => $shiftType,
+                'angel_types' => $angeltypes,
+            ]
         );
     }
 
@@ -62,7 +73,7 @@ class ShiftTypesController extends BaseController
 
         return $this->response->withView(
             'admin/shifttypes/view',
-            ['shifttype' => $shiftType]
+            ['shifttype' => $shiftType, 'is_view' => true]
         );
     }
 
@@ -77,12 +88,19 @@ class ShiftTypesController extends BaseController
             return $this->delete($request);
         }
 
+        /** @var Collection|AngelType[] $angelTypes */
+        $angelTypes = AngelType::all();
+        $validation = [];
+        foreach ($angelTypes as $angelType) {
+            $validation['angel_type_' . $angelType->id] = 'optional|int';
+        }
+
         $data = $this->validate(
             $request,
             [
-                'name' => 'required',
-                'description' => 'required|optional',
-            ]
+                'name' => 'required|max:255',
+                'description' => 'optional',
+            ] + $validation
         );
 
         if (ShiftType::whereName($data['name'])->where('id', '!=', $shiftType->id)->exists()) {
@@ -90,15 +108,37 @@ class ShiftTypesController extends BaseController
         }
 
         $shiftType->name = $data['name'];
-        $shiftType->description = $data['description'];
+        $shiftType->description = $data['description'] ?? '';
 
         $shiftType->save();
+        $shiftType->neededAngelTypes()->delete();
+
+        // Associate angel types with the shift type
+        $angelsInfo = '';
+        foreach ($angelTypes as $angelType) {
+            $count = $data['angel_type_' . $angelType->id];
+            if (!$count) {
+                continue;
+            }
+
+            $neededAngelType = new NeededAngelType();
+
+            $neededAngelType->shiftType()->associate($shiftType);
+            $neededAngelType->angelType()->associate($angelType);
+
+            $neededAngelType->count = $data['angel_type_' . $angelType->id];
+
+            $neededAngelType->save();
+
+            $angelsInfo .= sprintf(', %s: %s', $angelType->name, $count);
+        }
 
         $this->log->info(
-            'Updated shift type "{name}": {description}',
+            'Updated shift type "{name}": {description} {angels}',
             [
                 'name' => $shiftType->name,
                 'description' => $shiftType->description,
+                'angels' => $angelsInfo,
             ]
         );
 
@@ -118,18 +158,7 @@ class ShiftTypesController extends BaseController
 
         $shifts = $shiftType->shifts;
         foreach ($shifts as $shift) {
-            foreach ($shift->shiftEntries as $entry) {
-                event('shift.entry.deleting', [
-                    'user' => $entry->user,
-                    'start' => $shift->start,
-                    'end' => $shift->end,
-                    'name' => $shift->shiftType->name,
-                    'title' => $shift->title,
-                    'type' => $entry->angelType->name,
-                    'location' => $shift->location,
-                    'freeloaded' => $entry->freeloaded,
-                ]);
-            }
+            event('shift.deleting', ['shift' => $shift]);
         }
         $shiftType->delete();
 

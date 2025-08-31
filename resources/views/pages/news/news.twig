@@ -1,4 +1,4 @@
-{% extends 'pages/news/overview.twig' %}
+{% extends 'pages/news/index.twig' %}
 {% import 'macros/base.twig' as m %}
 {% import 'macros/form.twig' as f %}
 
@@ -17,14 +17,14 @@
                 <div class="card-body {{ m.type_bg_class() }}">
                     {{ comment.text|nl2br }}
                 </div>
-                <div class="card-footer {% if theme.type =='light' %}bg-light{% else %}bg-dark{% endif %} text-muted d-flex align-items-center">
+                <div class="card-footer {{ m.type_bg_class() }} text-muted d-flex align-items-center">
                     <div class="me-3">
                         {{ m.icon('clock') }}
                         {{ comment.created_at.format(__('general.datetime')) }}
                     </div>
                     {{ m.user(comment.user, {'pronoun': true}) }}
 
-                    {% if comment.user.id == user.id or has_permission_to('admin_news') or has_permission_to('comment.delete') %}
+                    {% if comment.user.id == user.id or can('admin_news') or can('comment.delete') %}
                         <div class="ms-auto">
                             <form
                                 action="{{ url('/news/comment/' ~ comment.id) }}" enctype="multipart/form-data"
@@ -45,7 +45,7 @@
 {% endblock %}
 
 {% block write_comment %}
-    {% if has_permission_to('news_comments') %}
+    {% if can('news_comments') %}
         <div class="col-md-12 mt-4">
             <h3>{{ __('news.comments.new') }}</h3>
 

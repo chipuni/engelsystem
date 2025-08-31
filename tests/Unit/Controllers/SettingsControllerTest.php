@@ -10,6 +10,7 @@ use Engelsystem\Config\GoodieType;
 use Engelsystem\Controllers\NotificationType;
 use Engelsystem\Controllers\SettingsController;
 use Engelsystem\Http\Exceptions\HttpNotFound;
+use Engelsystem\Http\Redirector;
 use Engelsystem\Http\Response;
 use Engelsystem\Models\AngelType;
 use Engelsystem\Models\Session as SessionModel;
@@ -55,7 +56,7 @@ class SettingsControllerTest extends ControllerTest
             'email_news'             => true,
             'email_human'            => true,
             'email_messages'         => true,
-            'email_goody'            => true,
+            'email_goodie'            => true,
             'shirt_size'             => 'S',
         ];
         $this->request = $this->request->withParsedBody($body);
@@ -69,10 +70,11 @@ class SettingsControllerTest extends ControllerTest
 
         config([
             'enable_pronoun'         => true,
-            'enable_user_name'       => true,
+            'enable_full_name'       => true,
             'enable_planned_arrival' => true,
             'enable_dect'            => true,
             'enable_mobile_show'     => true,
+            'enable_email_goodie'     => true,
             'goodie_type'            => GoodieType::Tshirt->value,
         ]);
 
@@ -95,8 +97,8 @@ class SettingsControllerTest extends ControllerTest
             ->method('withView')
             ->willReturnCallback(function ($view, $data) {
                 $this->assertEquals('pages/settings/profile', $view);
-                $this->assertArrayHasKey('user', $data);
-                $this->assertEquals($this->user, $data['user']);
+                $this->assertArrayHasKey('userdata', $data);
+                $this->assertEquals($this->user, $data['userdata']);
                 return $this->response;
             });
 
@@ -133,7 +135,7 @@ class SettingsControllerTest extends ControllerTest
         $this->assertEquals($body['email_news'], $this->user->settings->email_news);
         $this->assertEquals($body['email_human'], $this->user->settings->email_human);
         $this->assertEquals($body['email_messages'], $this->user->settings->email_messages);
-        $this->assertEquals($body['email_goody'], $this->user->settings->email_goody);
+        $this->assertEquals($body['email_goodie'], $this->user->settings->email_goodie);
         $this->assertEquals($body['shirt_size'], $this->user->personalData->shirt_size);
     }
 
@@ -176,7 +178,7 @@ class SettingsControllerTest extends ControllerTest
     public function testSaveProfileIgnoresFirstAndLastnameIfDisabled(): void
     {
         $this->setUpProfileTest();
-        config(['enable_user_name' => false]);
+        config(['enable_full_name' => false]);
         $this->controller->saveProfile($this->request);
         $this->assertEquals('', $this->user->personalData->first_name);
         $this->assertEquals('', $this->user->personalData->last_name);
@@ -219,12 +221,12 @@ class SettingsControllerTest extends ControllerTest
     /**
      * @covers \Engelsystem\Controllers\SettingsController::saveProfile
      */
-    public function testSaveProfileIgnoresEmailGoodyIfDisabled(): void
+    public function testSaveProfileIgnoresEmailGoodieIfDisabled(): void
     {
         $this->setUpProfileTest();
         $this->config->set('goodie_type', GoodieType::None->value);
         $this->controller->saveProfile($this->request);
-        $this->assertFalse($this->user->settings->email_goody);
+        $this->assertFalse($this->user->settings->email_goodie);
     }
 
     /**
@@ -688,6 +690,9 @@ class SettingsControllerTest extends ControllerTest
         config(['ifsg_enabled' => true, 'ifsg_light_enabled' => true]);
         $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
+
         $this->response->expects($this->once())
             ->method('withView')
             ->willReturnCallback(function ($view, $data) {
@@ -706,7 +711,6 @@ class SettingsControllerTest extends ControllerTest
     public function testCertificateIfsgNotConfigured(): void
     {
         config(['ifsg_enabled' => false]);
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
         $this->expectException(HttpNotFound::class);
         $this->controller->certificate();
@@ -717,6 +721,7 @@ class SettingsControllerTest extends ControllerTest
      */
     public function testCertificateDrivingLicense(): void
     {
+        config(['driving_license_enabled' => true]);
         $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
         $angelType = AngelType::factory()->create(['requires_driver_license' => true]);
@@ -751,7 +756,10 @@ class SettingsControllerTest extends ControllerTest
     public function testSaveIfsgCertificateLight(): void
     {
         config(['ifsg_enabled' => true, 'ifsg_light_enabled' => true]);
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
 
         $body = [
             'ifsg_certificate_light' => true,
@@ -765,8 +773,8 @@ class SettingsControllerTest extends ControllerTest
 
         $this->controller->saveIfsgCertificate($this->request);
 
-        $this->assertEquals(true, $this->user->license->ifsg_certificate_light);
-        $this->assertEquals(false, $this->user->license->ifsg_certificate);
+        $this->assertTrue($this->user->license->ifsg_certificate_light);
+        $this->assertFalse($this->user->license->ifsg_certificate);
     }
 
     /**
@@ -775,7 +783,11 @@ class SettingsControllerTest extends ControllerTest
     public function testSaveIfsgCertificateLightWhileDisabled(): void
     {
         config(['ifsg_enabled' => true, 'ifsg_light_enabled' => false]);
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
+
         $this->user->license->ifsg_certificate_light = false;
         $this->user->license->save();
 
@@ -791,20 +803,24 @@ class SettingsControllerTest extends ControllerTest
 
         $this->controller->saveIfsgCertificate($this->request);
 
-        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
-        $this->assertEquals(false, $this->user->license->ifsg_certificate);
+        $this->assertFalse($this->user->license->ifsg_certificate_light);
+        $this->assertFalse($this->user->license->ifsg_certificate);
     }
 
     /**
      * @covers \Engelsystem\Controllers\SettingsController::saveIfsgCertificate
+     * @covers \Engelsystem\Controllers\SettingsController::checkIfsgCertificate
      */
     public function testSaveIfsgCertificate(): void
     {
         config(['ifsg_enabled' => true]);
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
 
         $body = [
-            'ifsg_certificate'       => true,
+            'ifsg_certificate' => true,
         ];
         $this->request = $this->request->withParsedBody($body);
 
@@ -815,8 +831,8 @@ class SettingsControllerTest extends ControllerTest
 
         $this->controller->saveIfsgCertificate($this->request);
 
-        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
-        $this->assertEquals(true, $this->user->license->ifsg_certificate);
+        $this->assertFalse($this->user->license->ifsg_certificate_light);
+        $this->assertTrue($this->user->license->ifsg_certificate);
     }
 
     /**
@@ -825,7 +841,10 @@ class SettingsControllerTest extends ControllerTest
     public function testSaveIfsgCertificateBoth(): void
     {
         config(['ifsg_enabled' => true]);
-        $this->setExpects($this->auth, 'user', null, $this->user, $this->once());
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
 
         $body = [
             'ifsg_certificate_light' => true,
@@ -840,8 +859,8 @@ class SettingsControllerTest extends ControllerTest
 
         $this->controller->saveIfsgCertificate($this->request);
 
-        $this->assertEquals(false, $this->user->license->ifsg_certificate_light);
-        $this->assertEquals(true, $this->user->license->ifsg_certificate);
+        $this->assertFalse($this->user->license->ifsg_certificate_light);
+        $this->assertTrue($this->user->license->ifsg_certificate);
     }
 
     /**
@@ -850,6 +869,7 @@ class SettingsControllerTest extends ControllerTest
      */
     public function testSaveDrivingLicense(): void
     {
+        config(['driving_license_enabled' => true]);
         $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
 
         $angelType = AngelType::factory()->create(['requires_driver_license' => true]);
@@ -886,6 +906,42 @@ class SettingsControllerTest extends ControllerTest
         $this->controller->saveDrivingLicense($this->request);
     }
 
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::api
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testApi(): void
+    {
+        config(['ifsg_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        /** @var Response|MockObject $response */
+        $this->response->expects($this->once())
+            ->method('withView')
+            ->willReturnCallback(function ($view, $data) {
+                $this->assertEquals('pages/settings/api', $view);
+                $this->assertArrayHasKey('settings_menu', $data);
+                return $this->response;
+            });
+
+        $this->controller = $this->app->make(SettingsController::class);
+        $this->controller->api();
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::apiKeyReset
+     */
+    public function testApiKeyReset(): void
+    {
+        $redirector = $this->createMock(Redirector::class);
+        $this->app->instance(Redirector::class, $redirector);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+        $this->setExpects($this->auth, 'resetApiKey', [$this->user], null, $this->atLeastOnce());
+        $this->setExpects($redirector, 'back', null, $this->response);
+
+        $this->controller = $this->app->make(SettingsController::class);
+        $this->controller->apiKeyReset();
+    }
 
     /**
      * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
@@ -957,11 +1013,33 @@ class SettingsControllerTest extends ControllerTest
 
     /**
      * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
-     * @covers \Engelsystem\Controllers\SettingsController::checkOauthHidden
      */
     public function testSettingsMenuWithIfsg(): void
     {
         config(['ifsg_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_ifsg_certificate' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/certificates', $menu);
+        $this->assertEquals(
+            ['title' => 'settings.certificates', 'icon' => 'card-checklist'],
+            $menu['http://localhost/settings/certificates']
+        );
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuWithDrivingLicense(): void
+    {
+        config(['driving_license_enabled' => true]);
+        $this->setExpects($this->auth, 'user', null, $this->user, $this->atLeastOnce());
+
+        $angelType = AngelType::factory()->create(['requires_driver_license' => true]);
+        $this->user->userAngelTypes()->attach($angelType);
 
         $menu = $this->controller->settingsMenu();
         $this->assertArrayHasKey('http://localhost/settings/certificates', $menu);
@@ -980,6 +1058,26 @@ class SettingsControllerTest extends ControllerTest
 
         $menu = $this->controller->settingsMenu();
         $this->assertArrayNotHasKey('http://localhost/settings/certificates', $menu);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuApi(): void
+    {
+        $this->setExpects($this->auth, 'canAny', null, true, $this->atLeastOnce());
+
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayHasKey('http://localhost/settings/profile', $menu);
+    }
+
+    /**
+     * @covers \Engelsystem\Controllers\SettingsController::settingsMenu
+     */
+    public function testSettingsMenuApiNotAvailable(): void
+    {
+        $menu = $this->controller->settingsMenu();
+        $this->assertArrayNotHasKey('http://localhost/settings/api', $menu);
     }
 
     /**
@@ -1007,7 +1105,7 @@ class SettingsControllerTest extends ControllerTest
             'dect'        => false,
         ];
         $this->config = new Config([
-            'min_password_length' => 6,
+            'password_min_length' => 6,
             'themes' => $themes,
             'locales' => $languages,
             'tshirt_sizes' => $tshirt_sizes,
@@ -1026,7 +1124,7 @@ class SettingsControllerTest extends ControllerTest
             ->has(Settings::factory([
                 'theme' => 1,
                 'language' => 'en_US',
-                'email_goody' => false,
+                'email_goodie' => false,
                 'mobile_show' => false,
             ]))
             ->has(License::factory())

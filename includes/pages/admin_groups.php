@@ -21,13 +21,13 @@ function admin_groups()
     $html = '';
     $request = request();
     /** @var Group[]|Collection $groups */
-    $groups = Group::query()->orderBy('name')->get();
+    $groups = Group::with('privileges')->orderBy('name')->get();
 
     if (!$request->has('action')) {
         $groups_table = [];
         foreach ($groups as $group) {
             /** @var Privilege[]|Collection $privileges */
-            $privileges = $group->privileges()->orderBy('name')->get();
+            $privileges = $group->privileges->sortBy('name');
             $privileges_html = [];
 
             foreach ($privileges as $privilege) {
@@ -42,8 +42,10 @@ function admin_groups()
                         '/admin-groups',
                         ['action' => 'edit', 'id' => $group->id]
                     ),
-                    icon('pencil') . __('edit'),
-                    'btn-sm'
+                    icon('pencil'),
+                    'btn-sm',
+                    '',
+                    __('form.edit')
                 ),
             ];
         }
@@ -79,7 +81,7 @@ function admin_groups()
                         );
                     }
 
-                    $privileges_form[] = form_submit('submit', __('form.save'));
+                    $privileges_form[] = form_submit('submit', icon('save') . __('form.save'));
                     $html .= page_with_title(__('Edit group') . ' ' . htmlspecialchars($group->name), [
                         form(
                             $privileges_form,
@@ -119,10 +121,9 @@ function admin_groups()
                         . ' edited: ' . join(', ', $privilege_names)
                     );
                     throw_redirect(url('/admin-groups'));
-                } else {
-                    return error('No Group found.', true);
                 }
-                break;
+
+                return error('No Group found.', true);
         }
     }
     return $html;

@@ -12,6 +12,7 @@ use Engelsystem\Models\User\User;
 use Engelsystem\Test\Unit\HasDatabase;
 use Engelsystem\Test\Unit\Helpers\Stub\UserModelImplementation;
 use Engelsystem\Test\Unit\ServiceProviderTest;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Http\Message\ServerRequestInterface;
 use Symfony\Component\HttpFoundation\Session\Session;
@@ -89,7 +90,7 @@ class AuthenticatorTest extends ServiceProviderTest
         $session = new Session(new MockArraySessionStorage());
 
         $request = $request->withHeader('Authorization', 'Bearer F00Bar');
-        $request = $request->withAttribute('route-api', true);
+        $request = $request->withAttribute('route-api-accessible', true);
         $this->app->instance('request', $request);
         User::factory()->create(['api_key' => 'F00Bar']);
 
@@ -159,7 +160,7 @@ class AuthenticatorTest extends ServiceProviderTest
         $this->initDatabase();
 
         $request = new Request();
-        $request = $request->withAttribute('route-api', true);
+        $request = $request->withAttribute('route-api-accessible', true);
         $session = new Session(new MockArraySessionStorage());
         $this->app->instance('request', $request);
 
@@ -184,7 +185,50 @@ class AuthenticatorTest extends ServiceProviderTest
     }
 
     /**
+     * @covers \Engelsystem\Helpers\Authenticator::userByHeaders
+     */
+    public function testUserByHeadersBearerTrimApiKey(): void
+    {
+        $this->initDatabase();
+
+        $request = new Request();
+        $request = $request->withAttribute('route-api-accessible', true);
+        $session = new Session(new MockArraySessionStorage());
+        $this->app->instance('request', $request);
+
+        $request = $request->withHeader('authorization', 'bearer  F00Bar ');
+        $auth = new Authenticator($request, $session, new User());
+        User::factory()->create(['api_key' => 'F00Bar']);
+        $user = $auth->user();
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertEquals('F00Bar', $user->api_key);
+    }
+
+    /**
+     * @covers \Engelsystem\Helpers\Authenticator::resetApiKey
+     */
+    public function testResetApiKey(): void
+    {
+        $this->initDatabase();
+
+        $user = User::factory()->create();
+        $oldKey = $user->api_key;
+
+        $auth = new Authenticator(new Request(), new Session(new MockArraySessionStorage()), new User());
+        $auth->resetApiKey($user);
+
+        $updatedUser = User::all()->last();
+        $newApiKey = $updatedUser->api_key;
+
+        $this->assertNotEquals($oldKey, $newApiKey);
+        $this->assertTrue(Str::isAscii($newApiKey));
+        $this->assertEquals(64, Str::length($newApiKey));
+    }
+
+    /**
      * @covers \Engelsystem\Helpers\Authenticator::can
+     * @covers \Engelsystem\Helpers\Authenticator::loadPermissions
+     * @covers \Engelsystem\Helpers\Authenticator::isApiRequest
      */
     public function testCan(): void
     {
@@ -209,11 +253,15 @@ class AuthenticatorTest extends ServiceProviderTest
         $this->assertTrue($auth->can('bar'));
 
         // Permissions cached
-        $this->assertTrue($auth->can('bar'));
+        $this->assertTrue($auth->can(['bar']));
+
+        // Can not
+        $this->assertFalse($auth->can(['nope']));
     }
 
     /**
      * @covers \Engelsystem\Helpers\Authenticator::can
+     * @covers \Engelsystem\Helpers\Authenticator::loadPermissions
      */
     public function testCanUnauthorized(): void
     {
@@ -230,6 +278,34 @@ class AuthenticatorTest extends ServiceProviderTest
         $this->assertFalse($auth->can('foo'));
         // Old/invalid user id got removed
         $this->assertNull($session->get('user_id'));
+    }
+
+    /**
+     * @covers \Engelsystem\Helpers\Authenticator::canAny
+     */
+    public function testCanAny(): void
+    {
+        $this->initDatabase();
+
+        $request = new Request();
+        $this->app->instance('request', $request);
+        $session = new Session(new MockArraySessionStorage());
+        /** @var User $user */
+        $user = User::factory()->create();
+        /** @var Group $group */
+        $group = Group::factory()->create();
+        /** @var Privilege $privilege */
+        $privilege = Privilege::factory()->create(['name' => 'bar']);
+
+        $user->groups()->attach($group);
+        $group->privileges()->attach($privilege);
+
+        $auth = new Authenticator($request, $session, new User());
+        $session->set('user_id', $user->id);
+
+        $this->assertTrue($auth->canAny('bar'));
+        $this->assertTrue($auth->canAny(['foo', 'bar', 'baz']));
+        $this->assertFalse($auth->canAny(['lorem', 'ipsum']));
     }
 
     /**
